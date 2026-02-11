@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: karakuri-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-karakuri}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-karakuri}
+      POSTGRES_DB: ${POSTGRES_DB:-karakuri}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U karakuri"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: karakuri-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://karakuri:karakuri@db:5432/karakuri
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      FRONTEND_URL: http://localhost:5173
+      DEV_AUTH_TOKEN: ${DEV_AUTH_TOKEN:-dev-token-12345}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      DOCKER_SOCKET: /var/run/docker.sock
+      WORKSPACE_IMAGE: ${WORKSPACE_IMAGE:-karakuri-workspace:latest}
+      TASK_DATA_PATH: /data/tasks
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - task_data:/data/tasks
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    profiles:
+      - full
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: karakuri-frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:8000
+    command: npm run dev -- --host
+    profiles:
+      - full
+
+volumes:
+  postgres_data:
+  task_data:
