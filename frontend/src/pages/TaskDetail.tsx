@@ -146,9 +146,7 @@ export default function TaskDetail() {
 
   // WebSocket for real-time logs
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
-    const wsUrl = `${protocol}//${host}/api/v1/ws/tasks/${taskId}/logs`
+    const wsUrl = `ws://localhost:8000/api/v1/ws/tasks/${taskId}/logs`
 
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
