@@ -3,8 +3,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import type { Task, TaskLog, TaskStatus, LogLevel } from '../types'
 import { getTask, getLogs, stopTask, executeInstructionStream } from '../services/api'
 
-const AUTH_TOKEN = 'dev-token-12345'
-
 function getStatusLabel(status: TaskStatus): string {
   return status
 }
@@ -152,7 +150,7 @@ export default function TaskDetail() {
     const host = window.location.host
     const wsUrl = `${protocol}//${host}/api/v1/ws/tasks/${taskId}/logs`
 
-    const ws = new WebSocket(wsUrl, ['Authorization', `Bearer ${AUTH_TOKEN}`])
+    const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
     ws.onopen = () => {
