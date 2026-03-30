@@ -1,7 +1,7 @@
 """Task management endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update as sql_update
 from typing import List
 from datetime import datetime
 
@@ -259,6 +259,14 @@ async def delete_task(
                 level=LogLevel.WARNING,
                 source=LogSource.DOCKER,
             )
+
+    # Null out FK references in task_logs before cascade delete to avoid constraint errors
+    await db.execute(
+        sql_update(TaskLog)
+        .where(TaskLog.task_id == task_id)
+        .values(instruction_id=None, test_run_id=None)
+    )
+    await db.flush()
 
     # Delete task (cascade will delete related records)
     await db.delete(task)

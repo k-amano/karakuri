@@ -48,14 +48,19 @@ class DockerService:
             # Create volume
             self.client.volumes.create(name=volume_name)
 
+            # Mount host ~/.claude/ for Claude Code CLI authentication
+            claude_dir = str(Path.home() / ".claude")
+            volumes = {
+                volume_name: {"bind": "/workspace", "mode": "rw"},
+                claude_dir: {"bind": "/root/.claude", "mode": "rw"},
+            }
+
             # Start container
             container = self.client.containers.run(
                 settings.workspace_image,
                 name=container_name,
                 detach=True,
-                volumes={
-                    volume_name: {"bind": "/workspace", "mode": "rw"}
-                },
+                volumes=volumes,
                 environment={
                     "TASK_ID": str(task_id),
                     "REPOSITORY_URL": repository_url,

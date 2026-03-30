@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     workspace_image: str = "karakuri-workspace:latest"
     task_data_path: str = "/tmp/karakuri/tasks"
 
-    # Claude Code
-    anthropic_api_key: str
+    # Claude Code (no longer used; Claude Code CLI is used instead)
+    anthropic_api_key: str = ""
 
     # Environment
     environment: str = "development"

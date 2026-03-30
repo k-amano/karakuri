@@ -7,15 +7,11 @@ from typing import AsyncGenerator
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-import anthropic
 
-from app.config import get_settings
 from app.models.task import Task, TaskStatus
 from app.models.instruction import Instruction, InstructionStatus
 from app.models.task_log import TaskLog, LogLevel, LogSource
 from app.services.docker_service import get_docker_service
-
-settings = get_settings()
 
 SYSTEM_PROMPT = """あなたはコード生成AIです。ユーザーの指示に従い、動作するコードファイルを生成します。
 
@@ -44,13 +40,43 @@ print("hello")
 - 日本語でコメントや説明を書いてもかまいません
 """
 
+# Python script written into the container to invoke Claude Code CLI and stream output
+_RUNNER_SCRIPT = """\
+import subprocess, sys, os
+prompt = open('/tmp/karakuri_prompt.txt', encoding='utf-8').read()
+env = {**os.environ, 'HOME': '/root'}
+proc = subprocess.Popen(
+    ['claude', '-p', prompt, '--output-format', 'text'],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    env=env,
+)
+for chunk in iter(lambda: proc.stdout.read(512), b''):
+    sys.stdout.buffer.write(chunk)
+    sys.stdout.buffer.flush()
+proc.wait()
+sys.exit(proc.returncode)
+"""
+
 
 class ClaudeCodeService:
-    """Service for executing Claude Code in containers."""
+    """Service for executing Claude Code CLI in containers."""
 
     def __init__(self):
         """Initialize service."""
         self.docker_service = get_docker_service()
+
+    def _write_text_to_container(self, container_id: str, path: str, text: str) -> None:
+        """Write arbitrary text to a file inside the container via base64."""
+        b64 = base64.b64encode(text.encode("utf-8")).decode("ascii")
+        cmd = (
+            f"python3 -c \""
+            f"import base64; "
+            f"open('{path}', 'w', encoding='utf-8')"
+            f".write(base64.b64decode('{b64}').decode('utf-8'))"
+            f"\""
+        )
+        self.docker_service.execute_command(container_id, cmd, "/workspace")
 
     async def execute_instruction(
         self,
@@ -59,8 +85,8 @@ class ClaudeCodeService:
         instruction_content: str,
     ) -> AsyncGenerator[str, None]:
         """
-        Execute instruction via Anthropic API and stream output.
-        Generated files are written into the task's Docker container.
+        Execute instruction via Claude Code CLI inside the task container and stream output.
+        Generated files (=== FILE: ... === blocks) are written into /workspace/repo.
         """
         result = await db.execute(select(Task).where(Task.id == task_id))
         task = result.scalar_one_or_none()
@@ -104,35 +130,39 @@ class ClaudeCodeService:
             yield f"[SYSTEM] 指示を受け付けました\n"
             yield f"[SYSTEM] {instruction_content}\n\n"
 
-            # Get workspace context
+            # Get workspace file listing for context
             _, ls_output, _ = self.docker_service.execute_command(
                 task.container_id,
                 "find /workspace/repo -type f | grep -v '.git' | head -30 2>/dev/null || echo '(空のディレクトリ)'",
                 "/workspace",
             )
-            yield f"[SYSTEM] ワークスペース確認完了\n\n"
+            yield "[SYSTEM] ワークスペース確認完了\n\n"
 
-            # Call Anthropic API with streaming
-            client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+            # Build full prompt
+            full_prompt = (
+                SYSTEM_PROMPT
+                + f"\n\n作業ディレクトリ: /workspace/repo\n現在のファイル:\n{ls_output.strip()}"
+                + f"\n\nユーザーの指示: {instruction_content}"
+            )
 
-            context_msg = f"作業ディレクトリ: /workspace/repo\n現在のファイル:\n{ls_output.strip()}\n\n指示: {instruction_content}"
+            # Write prompt and runner script into the container
+            self._write_text_to_container(task.container_id, "/tmp/karakuri_prompt.txt", full_prompt)
+            self._write_text_to_container(task.container_id, "/tmp/karakuri_runner.py", _RUNNER_SCRIPT)
+
+            yield "[Claude] Claude Code CLIを実行しています...\n\n"
 
             full_response = ""
-            yield "[Claude] コードを生成しています...\n\n"
-
-            async with client.messages.stream(
-                model="claude-opus-4-6",
-                max_tokens=8096,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": context_msg}],
-            ) as stream:
-                async for text in stream.text_stream:
-                    yield text
-                    full_response += text
-                    output_buffer.append(text)
-                    if len(output_buffer) >= 50:
-                        await save_log("".join(output_buffer))
-                        output_buffer = []
+            async for chunk in self.docker_service.execute_command_stream(
+                task.container_id,
+                "python3 /tmp/karakuri_runner.py",
+                "/workspace/repo",
+            ):
+                yield chunk
+                full_response += chunk
+                output_buffer.append(chunk)
+                if len(output_buffer) >= 50:
+                    await save_log("".join(output_buffer))
+                    output_buffer = []
 
             if output_buffer:
                 await save_log("".join(output_buffer))
