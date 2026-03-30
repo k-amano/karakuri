@@ -157,7 +157,10 @@ export default function TaskDetail() {
 
     ws.onmessage = (event: MessageEvent) => {
       try {
-        const log: TaskLog = JSON.parse(event.data as string)
+        const parsed = JSON.parse(event.data as string)
+        // Skip control messages from the server (connected, ping)
+        if (parsed.type === 'connected' || parsed.type === 'ping') return
+        const log: TaskLog = parsed
         if (seenLogIdsRef.current.has(log.id)) return
         seenLogIdsRef.current.add(log.id)
         setLogEntries(prev => [...prev, { kind: 'log', data: log }])
