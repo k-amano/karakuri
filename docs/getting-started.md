@@ -102,11 +102,17 @@ Hi username! You've successfully authenticated, but GitHub does not provide shel
 
 ---
 
-## 手順2｜ターミナルをプロジェクトフォルダに移動する
+## 手順2｜リポジトリをクローンする
+
+Karakuri のソースコードをダウンロードします。保存先は任意のディレクトリで構いません。
 
 ```bash
-cd /home/administrator/Projects/karakuri
+git clone git@github.com:k-amano/karakuri.git
+cd karakuri
 ```
+
+`karakuri/` ディレクトリが作成され、その中に移動します。
+**以降の手順はすべてこの `karakuri/` ディレクトリの中で実行します。**
 
 ---
 
@@ -145,7 +151,8 @@ ENVIRONMENT=development
 
 ## 手順4｜データベースを起動する
 
-以下を実行します。
+Karakuri のデータベース（PostgreSQL）は Docker コンテナとして起動します。
+**PostgreSQL を別途インストールする必要はありません。**
 
 ```bash
 docker compose up -d db
@@ -182,7 +189,7 @@ karakuri-db   postgres:16-alpine   "docker-entrypoint.s…"   db        X minute
 以下を **1行ずつ** 実行してください。1つ実行するたびに完了を確認してから次に進みます。
 
 ```bash
-cd /home/administrator/Projects/karakuri/backend
+cd backend
 ```
 
 何も表示されなければ OK です。
@@ -203,7 +210,11 @@ source venv/bin/activate
 (venv) administrator@owl:~/Projects/karakuri/backend$
 ```
 
-先頭に `(venv)` が付いていれば OK です。
+先頭に `(venv)` が付いていれば OK です。ターミナルの表示例：
+
+```
+(venv) ユーザー名@コンピュータ名:~/karakuri/backend$
+```
 
 ```bash
 pip install fastapi "uvicorn[standard]" sqlalchemy asyncpg psycopg2-binary \
@@ -253,8 +264,10 @@ INFO  [alembic.runtime.migration] Will assume transactional DDL.
 Karakuri がコードを動かすための専用環境を作ります。**5〜10分かかります。**
 たくさんの文字が流れますが、完了まで待ちます。
 
+まずプロジェクトルートに戻ります（手順5で `backend/` に移動していた場合）：
+
 ```bash
-cd /home/administrator/Projects/karakuri
+cd ..
 ```
 
 ```bash
@@ -278,7 +291,7 @@ Successfully tagged karakuri-workspace:latest
 ## 手順7｜フロントエンドの依存パッケージをインストールする
 
 ```bash
-cd /home/administrator/Projects/karakuri/frontend
+cd frontend
 ```
 
 ```bash
@@ -311,6 +324,7 @@ up to date, audited 231 packages in 46s
 > ### ここまでの手順1〜7は初回セットアップです。完了しました。
 > このターミナルは閉じても構いません。
 > 次の「第2部：起動する」では新しいターミナルを2つ開いて使います。
+> 2回目以降は手順3〜7は不要です。「第2部：起動する」から始めてください。
 
 ---
 
@@ -326,8 +340,10 @@ up to date, audited 231 packages in 46s
 
 **新しいターミナルウィンドウを開いて**、以下を順番に実行します。
 
+まず `karakuri/` ディレクトリに移動します（クローンした場所に合わせてください）：
+
 ```bash
-cd /home/administrator/Projects/karakuri
+cd karakuri   # クローンしたディレクトリ名（パスが違う場合は適宜変更）
 ```
 
 ```bash
@@ -365,7 +381,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 以下のように表示されれば起動成功です。このターミナルは **閉じずに** そのままにしておきます。
 
 ```
-INFO:     Will watch for changes in these directories: ['/home/administrator/Projects/karakuri/backend']
+INFO:     Will watch for changes in these directories: ['/path/to/karakuri/backend']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 INFO:     Started reloader process [XXXXX] using StatReload
 INFO:     Started server process [XXXXX]
@@ -380,7 +396,7 @@ INFO:     Application startup complete.
 **もう1つ別のターミナルウィンドウを開いて**、以下を実行します。
 
 ```bash
-cd /home/administrator/Projects/karakuri/frontend
+cd karakuri/frontend   # クローンした場所に合わせて変更してください
 ```
 
 ```bash
