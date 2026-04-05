@@ -122,10 +122,10 @@ class ClaudeCodeService:
         if not task.container_id:
             raise ValueError("Task has no container")
 
-        # Gather workspace context
+        # Gather lightweight index context (file list, git log, README)
         _, file_list, _ = self.docker_service.execute_command(
             task.container_id,
-            "find /workspace/repo -type f | grep -v '.git' | head -50 2>/dev/null || echo '(空)'",
+            "find /workspace/repo -type f | grep -v '.git' 2>/dev/null || echo '(空)'",
             "/workspace",
         )
         _, git_log, _ = self.docker_service.execute_command(
@@ -139,34 +139,6 @@ class ClaudeCodeService:
             "/workspace/repo",
         )
 
-        # Read source file contents (exclude binary/lock files, limit total size)
-        _, source_files_raw, _ = self.docker_service.execute_command(
-            task.container_id,
-            (
-                "find /workspace/repo -type f "
-                r"| grep -v '.git' "
-                r"| grep -v -E '\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|pdf|zip|tar|gz|lock|min\.js|min\.css)$' "
-                "| head -30"
-            ),
-            "/workspace",
-        )
-        file_contents_section = ""
-        total_chars = 0
-        for fpath in source_files_raw.strip().splitlines():
-            fpath = fpath.strip()
-            if not fpath:
-                continue
-            _, content, _ = self.docker_service.execute_command(
-                task.container_id,
-                f"cat {fpath} 2>/dev/null",
-                "/workspace",
-            )
-            if total_chars + len(content) > 12000:
-                file_contents_section += f"\n--- {fpath} (省略: 文字数制限)\n"
-                break
-            file_contents_section += f"\n--- {fpath}\n{content}\n"
-            total_chars += len(content)
-
         # Get past instructions for this task
         past_result = await db.execute(
             sa_select(Instruction)
@@ -178,10 +150,13 @@ class ClaudeCodeService:
         past_instructions = past_result.scalars().all()
         past_text = "\n".join(f"- {i.content}" for i in past_instructions) or "(なし)"
 
-        # Build meta-prompt for prompt generation
-        meta_prompt = f"""あなたはプロンプトエンジニアです。ユーザーの簡潔な指示を、Claude Code CLIに渡す最適なプロンプトに変換してください。
+        # Build meta-prompt — file contents are NOT pre-embedded;
+        # the agent reads relevant files itself based on the instruction
+        meta_prompt = f"""あなたはプロンプトエンジニアです。ユーザーの簡潔な指示を、Claude Code CLIエージェントに渡す最適なプロンプトに変換してください。
 
 ## ワークスペース情報
+
+作業ディレクトリ: /workspace/repo
 
 ファイル一覧:
 {file_list.strip()}
@@ -190,10 +165,7 @@ class ClaudeCodeService:
 {git_log.strip()}
 
 README:
-{readme[:2000].strip()}
-
-ソースファイルの内容:
-{file_contents_section.strip() or "(ファイルなし)"}
+{readme[:3000].strip()}
 
 このタスクの過去の指示履歴:
 {past_text}
@@ -209,22 +181,26 @@ README:
 {feedback}
 """
         meta_prompt += """
+## 手順
+
+1. まず上記のファイル一覧から、ユーザーの指示に関係するファイルを特定してください
+2. 該当ファイルを読み込み、現在の実装を正確に把握してください
+3. その上で、Claude Code CLIエージェントへ渡す最適なプロンプトを生成してください
+
 ## 出力ルール
 
-上記の情報をもとに、Claude Code CLIエージェントへ渡す最適なプロンプトを出力してください。
-プロンプトには以下を含めてください：
-- 対象ファイルのパスを具体的に指定する（ソースファイルの内容から正確に把握する）
-- 実装すべき内容を詳細に記述する
-- 必要であれば動作確認の観点も含める
+生成するプロンプトには以下を含めてください：
+- 対象ファイルの正確なパス（読み込んだ内容に基づく）
+- 現状の実装を踏まえた具体的な変更内容
+- 必要であれば動作確認の観点
 
-注意: Claude Code CLIはエージェントモードで実行されるため、ファイルの読み書きやコマンド実行は自動で行われます。
-出力形式の指定は不要です。
+注意: 実行エージェントはファイルの読み書きやコマンド実行を自動で行います。出力形式の指定は不要です。
 
 プロンプト本文のみを出力してください。説明や前置きは不要です。
 """
 
         self._write_text_to_container(task.container_id, "/tmp/karakuri_prompt.txt", meta_prompt)
-        self._write_text_to_container(task.container_id, "/tmp/karakuri_runner.py", _RUNNER_SCRIPT)
+        self._write_text_to_container(task.container_id, "/tmp/karakuri_runner.py", _RUNNER_SCRIPT_AGENT)
 
         async for chunk in self.docker_service.execute_command_stream(
             task.container_id,
