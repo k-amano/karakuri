@@ -23,7 +23,7 @@ export default function TaskCreate() {
   const [newRepoDescription, setNewRepoDescription] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [branchName, setBranchName] = useState('main')
+  const [branchName, setBranchName] = useState('')
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -63,10 +63,6 @@ export default function TaskCreate() {
       errs.title = 'タイトルを入力してください'
     }
 
-    if (!branchName.trim()) {
-      errs.branchName = 'ブランチ名を入力してください'
-    }
-
     return errs
   }
 
@@ -100,7 +96,7 @@ export default function TaskCreate() {
         repository_id: repositoryId,
         title: title.trim(),
         description: description.trim() || undefined,
-        branch_name: branchName.trim(),
+        branch_name: branchName.trim() || undefined,
       })
 
       navigate(`/tasks/${task.id}`)
@@ -199,7 +195,7 @@ export default function TaskCreate() {
                       className="form-input"
                       value={newRepoUrl}
                       onChange={e => setNewRepoUrl(e.target.value)}
-                      placeholder="https://github.com/user/repo.git"
+                      placeholder="git@github.com:ユーザー名/リポジトリ名.git"
                     />
                     {errors.repoUrl && (
                       <p className="form-error">{errors.repoUrl}</p>
@@ -257,19 +253,14 @@ export default function TaskCreate() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">
-                  ブランチ名 <span className="required">*</span>
-                </label>
+                <label className="form-label">ブランチ名（任意）</label>
                 <input
                   type="text"
                   className="form-input"
                   value={branchName}
                   onChange={e => setBranchName(e.target.value)}
-                  placeholder="main"
+                  placeholder="空白の場合は karakuri/task-{id} が自動設定されます"
                 />
-                {errors.branchName && (
-                  <p className="form-error">{errors.branchName}</p>
-                )}
               </div>
 
               <div className="form-group">
