@@ -422,6 +422,28 @@ export default function TaskDetail() {
         </div>
 
         <div className="task-detail-body">
+          {/* Running status banner */}
+          {(streaming || task.status === 'running' || task.status === 'initializing' || generating) && (
+            <div style={{
+              background: '#1e3a5f',
+              borderBottom: '1px solid #2563eb',
+              padding: '6px 16px',
+              fontSize: '0.82rem',
+              color: '#93c5fd',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexShrink: 0,
+            }}>
+              <span className="spinner" />
+              {generating
+                ? 'プロンプト生成中...'
+                : task.status === 'initializing'
+                ? 'コンテナを準備中... (30秒〜1分かかります)'
+                : '実行中... (完了まで1〜3分かかることがあります)'}
+            </div>
+          )}
+
           {/* Log Viewer */}
           <div className="log-viewer" ref={logViewerRef}>
             {logEntries.length === 0 ? (
@@ -448,11 +470,11 @@ export default function TaskDetail() {
                     </p>
                   )
                 } else {
-                  return entry.text ? (
+                  return (
                     <p key={entry.key} className="log-stream-chunk">
-                      {entry.text}
+                      {entry.text || '⏳ Claude Code CLI 起動中...'}
                     </p>
-                  ) : null
+                  )
                 }
               })
             )}

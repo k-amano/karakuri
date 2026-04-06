@@ -287,11 +287,14 @@ README:
             # Auto-commit changes
             yield "\n[GIT] 変更をコミットしています...\n"
             commit_msg = instruction_content.replace("\n", " ")[:72]
-            b64_msg = base64.b64encode(commit_msg.encode("utf-8")).decode("ascii")
+            # Write commit message to temp file to avoid shell escaping issues
+            self._write_text_to_container(
+                task.container_id, "/tmp/karakuri_commit_msg.txt", commit_msg
+            )
             commit_cmd = (
                 "git add -A && "
                 "git diff --cached --quiet && echo '[GIT] 変更なし（コミットスキップ）' || "
-                f"git commit -m \"$(python3 -c \\\"import base64; print(base64.b64decode('{b64_msg}').decode())\\\")\""
+                "git commit -F /tmp/karakuri_commit_msg.txt"
             )
             _, commit_out, _ = self.docker_service.execute_command(
                 task.container_id, commit_cmd, "/workspace/repo"
