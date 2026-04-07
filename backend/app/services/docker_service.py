@@ -101,6 +101,12 @@ class DockerService:
                 workdir="/workspace",
             )
 
+            # Allow root to run git commands in karakuri-owned repo
+            container.exec_run(
+                ["bash", "-c", "git config --global --add safe.directory /workspace/repo"],
+                workdir="/workspace",
+            )
+
             return container.id, container_name
 
         except Exception as e:
