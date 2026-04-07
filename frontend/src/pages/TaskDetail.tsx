@@ -104,11 +104,43 @@ export default function TaskDetail() {
   const seenLogIdsRef = useRef<Set<number>>(new Set())
   const streamKeyRef = useRef(0)
 
+  // Resizable split pane
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const isDraggingRef = useRef(false)
+  const [logHeightPercent, setLogHeightPercent] = useState(50)
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!isDraggingRef.current || !bodyRef.current) return
+      const rect = bodyRef.current.getBoundingClientRect()
+      const pct = ((e.clientY - rect.top) / rect.height) * 100
+      setLogHeightPercent(Math.min(80, Math.max(20, pct)))
+    }
+    function onMouseUp() {
+      isDraggingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
+  function handleResizeStart(e: React.MouseEvent) {
+    e.preventDefault()
+    isDraggingRef.current = true
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+  }
+
   // Auto-scroll log viewer
   const scrollToBottom = useCallback(() => {
     const el = logViewerRef.current
     if (el) {
-      el.scrollTop = el.scrollHeight
+      requestAnimationFrame(() => { el.scrollTop = el.scrollHeight })
     }
   }, [])
 
@@ -138,13 +170,17 @@ export default function TaskDetail() {
 
   // Fetch initial logs
   useEffect(() => {
-    getLogs(taskId)
+    getLogs(taskId, 500)
       .then(logs => {
         const entries: LogEntry[] = logs.map(log => {
           seenLogIdsRef.current.add(log.id)
           return { kind: 'log', data: log }
         })
         setLogEntries(entries)
+        requestAnimationFrame(() => {
+          const el = logViewerRef.current
+          if (el) el.scrollTop = el.scrollHeight
+        })
       })
       .catch(err => {
         console.error('Failed to fetch logs:', err)
@@ -471,7 +507,7 @@ export default function TaskDetail() {
           )}
         </div>
 
-        <div className="task-detail-body">
+        <div className="task-detail-body" ref={bodyRef}>
           {/* Running status banner */}
           {(streaming || task.status === 'running' || task.status === 'initializing' || generating) && (
             <div style={{
@@ -495,7 +531,7 @@ export default function TaskDetail() {
           )}
 
           {/* Log Viewer */}
-          <div className="log-viewer" ref={logViewerRef}>
+          <div className="log-viewer" ref={logViewerRef} style={{ flex: `0 0 ${logHeightPercent}%` }}>
             {logEntries.length === 0 ? (
               <p className="log-empty">ログはまだありません...</p>
             ) : (
@@ -530,10 +566,10 @@ export default function TaskDetail() {
             )}
           </div>
 
-          <div className="resize-handle" />
+          <div className="resize-handle" onMouseDown={handleResizeStart} />
 
           {/* Instruction Input Panel */}
-          <div className="instruction-panel">
+          <div className="instruction-panel" style={{ flex: `0 0 ${100 - logHeightPercent}%` }}>
             {promptState === 'idle' && (
               <>
                 <p className="instruction-panel-title">Claudeへの指示</p>

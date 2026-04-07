@@ -424,7 +424,6 @@ button:disabled {
 
 /* Log Viewer */
 .log-viewer {
-  flex: 0 0 60%;
   background: #1a1a2a;
   overflow-y: auto;
   padding: 16px 20px;
@@ -484,7 +483,6 @@ button:disabled {
 
 /* Instruction Panel */
 .instruction-panel {
-  flex: 0 0 40%;
   background: #ffffff;
   border-top: 2px solid #e2e8f0;
   padding: 20px 24px;
@@ -541,14 +539,29 @@ button:disabled {
 
 /* Divider */
 .resize-handle {
-  height: 4px;
-  background: #e2e8f0;
+  height: 6px;
+  background: #334155;
   cursor: row-resize;
   flex-shrink: 0;
+  position: relative;
+  transition: background 0.15s;
 }
 
-.resize-handle:hover {
+.resize-handle:hover,
+.resize-handle.dragging {
   background: #2563eb;
+}
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 2px;
+  background: #64748b;
+  border-radius: 2px;
 }
 
 /* Spinner */

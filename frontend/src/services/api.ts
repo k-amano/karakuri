@@ -91,9 +91,9 @@ export async function gitPushStream(
   }
 }
 
-export async function getLogs(taskId: number): Promise<TaskLog[]> {
+export async function getLogs(taskId: number, limit = 500): Promise<TaskLog[]> {
   const res = await apiClient.get<TaskLog[]>(`/api/v1/tasks/${taskId}/logs`, {
-    params: { limit: 100 },
+    params: { limit },
   })
   return res.data
 }
