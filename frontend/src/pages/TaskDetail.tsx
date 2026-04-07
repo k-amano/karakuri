@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import type { Task, TaskLog, TaskStatus, LogLevel } from '../types'
-import { getTask, getLogs, stopTask, executeInstructionStream, generatePromptStream } from '../services/api'
+import { getTask, getLogs, stopTask, executeInstructionStream, generatePromptStream, gitPushStream } from '../services/api'
 
 type PromptState = 'idle' | 'generating' | 'confirming'
 
@@ -93,6 +93,7 @@ export default function TaskDetail() {
   const [instruction, setInstruction] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [stopping, setStopping] = useState(false)
+  const [pushing, setPushing] = useState(false)
   const [promptState, setPromptState] = useState<PromptState>('idle')
   const [generatedPrompt, setGeneratedPrompt] = useState('')
   const [feedback, setFeedback] = useState('')
@@ -319,6 +320,46 @@ export default function TaskDetail() {
     setFeedback('')
   }
 
+  async function handleGitPush() {
+    if (pushing || streaming) return
+    setPushing(true)
+
+    streamKeyRef.current += 1
+    const currentKey = `stream-${streamKeyRef.current}`
+    setLogEntries(prev => [...prev, { kind: 'stream', text: '', key: currentKey }])
+
+    await gitPushStream(
+      taskId,
+      (chunk) => {
+        setLogEntries(prev =>
+          prev.map(entry =>
+            entry.kind === 'stream' && entry.key === currentKey
+              ? { ...entry, text: entry.text + chunk }
+              : entry
+          )
+        )
+      },
+      () => { setPushing(false) },
+      (err) => {
+        setLogEntries(prev => [
+          ...prev,
+          {
+            kind: 'log',
+            data: {
+              id: Date.now(),
+              task_id: taskId,
+              level: 'error',
+              source: 'system',
+              message: `Git push error: ${err}`,
+              created_at: new Date().toISOString(),
+            },
+          },
+        ])
+        setPushing(false)
+      }
+    )
+  }
+
   async function handleStop() {
     if (!task || stopping) return
     setStopping(true)
@@ -408,6 +449,15 @@ export default function TaskDetail() {
               {task.branch_name}
             </span>
           </div>
+
+          <button
+            className="btn-secondary btn-sm"
+            onClick={handleGitPush}
+            disabled={pushing || streaming || task.status !== 'idle'}
+            style={{ flexShrink: 0 }}
+          >
+            {pushing ? 'Push中...' : 'Git Push'}
+          </button>
 
           {showStopButton && (
             <button

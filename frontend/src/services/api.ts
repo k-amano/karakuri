@@ -54,6 +54,43 @@ export async function stopTask(id: number): Promise<Task> {
   return res.data
 }
 
+export async function gitPushStream(
+  taskId: number,
+  onChunk: (text: string) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+): Promise<void> {
+  try {
+    const response = await fetch(`/api/v1/tasks/${taskId}/git/push`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${AUTH_TOKEN}` },
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      onError(`HTTP ${response.status}: ${text}`)
+      return
+    }
+
+    if (!response.body) {
+      onError('No response body')
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      if (chunk) onChunk(chunk)
+    }
+    onDone()
+  } catch (err) {
+    onError(err instanceof Error ? err.message : String(err))
+  }
+}
+
 export async function getLogs(taskId: number): Promise<TaskLog[]> {
   const res = await apiClient.get<TaskLog[]>(`/api/v1/tasks/${taskId}/logs`, {
     params: { limit: 100 },
