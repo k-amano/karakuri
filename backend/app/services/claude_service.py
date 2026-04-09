@@ -104,6 +104,91 @@ class ClaudeCodeService:
         )
         self.docker_service.execute_command(container_id, cmd, "/workspace")
 
+    async def clarify_requirements(
+        self,
+        db: AsyncSession,
+        task_id: int,
+        instruction: str,
+        history: list,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Conduct a clarification Q&A session before prompt generation.
+        Claude either asks questions or outputs PROMPT_READY\\n{prompt}.
+        Uses -p mode (text only) — file reading is deferred to generate_prompt.
+        """
+        result = await db.execute(sa_select(Task).where(Task.id == task_id))
+        task = result.scalar_one_or_none()
+        if not task:
+            raise ValueError("Task not found")
+        if not task.container_id:
+            raise ValueError("Task has no container")
+
+        # Lightweight context: file list + README only
+        _, file_list, _ = self.docker_service.execute_command(
+            task.container_id,
+            "find /workspace/repo -type f | grep -v '.git' 2>/dev/null || echo '(空)'",
+            "/workspace",
+        )
+        _, readme, _ = self.docker_service.execute_command(
+            task.container_id,
+            "cat /workspace/repo/README.md 2>/dev/null || cat /workspace/repo/README 2>/dev/null || echo '(READMEなし)'",
+            "/workspace/repo",
+        )
+
+        # Build conversation history text
+        history_text = ""
+        if history:
+            for msg in history:
+                role_label = "Claude" if msg["role"] == "assistant" else "ユーザー"
+                history_text += f"{role_label}: {msg['content']}\n\n"
+
+        clarify_prompt = f"""あなたは要件ヒアリング担当です。ユーザーの指示を受け取り、最適なコードを生成するために必要な不明点を質問します。
+
+## プロジェクト情報
+
+ファイル一覧:
+{file_list.strip()}
+
+README:
+{readme[:2000].strip()}
+
+## ユーザーの指示
+
+{instruction}
+"""
+        if history_text:
+            clarify_prompt += f"""
+## これまでの会話
+
+{history_text.strip()}
+"""
+
+        clarify_prompt += """
+## あなたの役割
+
+以下のどちらかを行ってください：
+
+**不明点がある場合：**
+番号付きリストで1〜3個の具体的な質問を出力してください。
+質問はユーザーの要件（機能・制約・期待する動作）に関するものにしてください。
+コードの実装詳細ではなく、ユーザーが決めるべき仕様を聞いてください。
+
+**十分な情報が揃った場合：**
+最初の行に「PROMPT_READY」とだけ出力し、2行目以降にClaude Code CLIエージェントへ渡す最適なプロンプトを出力してください。
+
+説明や前置きは不要です。質問か「PROMPT_READY」で始めてください。
+"""
+
+        self._write_text_to_container(task.container_id, "/tmp/karakuri_prompt.txt", clarify_prompt)
+        self._write_text_to_container(task.container_id, "/tmp/karakuri_runner.py", _RUNNER_SCRIPT)
+
+        async for chunk in self.docker_service.execute_command_stream(
+            task.container_id,
+            "python3 /tmp/karakuri_runner.py",
+            "/workspace/repo",
+        ):
+            yield chunk
+
     async def generate_prompt(
         self,
         db: AsyncSession,

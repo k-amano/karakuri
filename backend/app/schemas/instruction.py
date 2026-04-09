@@ -1,7 +1,7 @@
 """Instruction schemas."""
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Literal
 from app.models.instruction import InstructionStatus
 
 
@@ -10,6 +10,20 @@ class GeneratePromptRequest(BaseModel):
 
     content: str
     feedback: Optional[str] = None
+
+
+class ChatMessage(BaseModel):
+    """A single message in the clarification conversation."""
+
+    role: Literal['assistant', 'user']
+    content: str
+
+
+class ClarifyRequest(BaseModel):
+    """Request schema for requirement clarification."""
+
+    instruction: str
+    history: List[ChatMessage] = []
 
 
 class InstructionBase(BaseModel):

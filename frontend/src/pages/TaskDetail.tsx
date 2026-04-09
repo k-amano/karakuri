@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import type { Task, TaskLog, TaskStatus, LogLevel } from '../types'
-import { getTask, getLogs, stopTask, executeInstructionStream, generatePromptStream, gitPushStream } from '../services/api'
+import { getTask, getLogs, stopTask, executeInstructionStream, generatePromptStream, clarifyStream, gitPushStream } from '../services/api'
 
-type PromptState = 'idle' | 'generating' | 'confirming'
+type PromptState = 'idle' | 'clarifying' | 'generating' | 'confirming'
+
+type ChatMessage = { role: 'assistant' | 'user'; content: string }
 
 function getStatusLabel(status: TaskStatus): string {
   return status
@@ -98,6 +100,10 @@ export default function TaskDetail() {
   const [generatedPrompt, setGeneratedPrompt] = useState('')
   const [feedback, setFeedback] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [clarifyHistory, setClarifyHistory] = useState<ChatMessage[]>([])
+  const [clarifyInput, setClarifyInput] = useState('')
+  const [clarifying, setClarifying] = useState(false)
+  const [clarifyStreamText, setClarifyStreamText] = useState('')
 
   const logViewerRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -280,6 +286,144 @@ export default function TaskDetail() {
     )
   }
 
+  async function handleStartClarify() {
+    if (!instruction.trim() || clarifying || generating) return
+    setClarifyHistory([])
+    setClarifyStreamText('')
+    setClarifying(true)
+    setPromptState('clarifying')
+
+    let streamedText = ''
+    await clarifyStream(
+      taskId,
+      instruction.trim(),
+      [],
+      (chunk) => {
+        streamedText += chunk
+        setClarifyStreamText(streamedText)
+      },
+      () => {
+        setClarifying(false)
+        if (streamedText.startsWith('PROMPT_READY')) {
+          const prompt = streamedText.replace(/^PROMPT_READY\n?/, '')
+          setGeneratedPrompt(prompt)
+          setClarifyStreamText('')
+          setClarifyHistory([])
+          setPromptState('confirming')
+        } else {
+          setClarifyHistory([{ role: 'assistant', content: streamedText }])
+          setClarifyStreamText('')
+        }
+      },
+      (err) => {
+        setClarifying(false)
+        setPromptState('idle')
+        setLogEntries(prev => [
+          ...prev,
+          {
+            kind: 'log',
+            data: {
+              id: Date.now(),
+              task_id: taskId,
+              level: 'error',
+              source: 'system',
+              message: `要件確認エラー: ${err}`,
+              created_at: new Date().toISOString(),
+            },
+          },
+        ])
+      }
+    )
+  }
+
+  async function handleSendClarifyAnswer() {
+    if (!clarifyInput.trim() || clarifying) return
+    const userMsg = clarifyInput.trim()
+    setClarifyInput('')
+    const newHistory: ChatMessage[] = [...clarifyHistory, { role: 'user', content: userMsg }]
+    setClarifyHistory(newHistory)
+    setClarifying(true)
+    setClarifyStreamText('')
+
+    let streamedText = ''
+    await clarifyStream(
+      taskId,
+      instruction.trim(),
+      newHistory,
+      (chunk) => {
+        streamedText += chunk
+        setClarifyStreamText(streamedText)
+      },
+      () => {
+        setClarifying(false)
+        if (streamedText.startsWith('PROMPT_READY')) {
+          const prompt = streamedText.replace(/^PROMPT_READY\n?/, '')
+          setGeneratedPrompt(prompt)
+          setClarifyStreamText('')
+          setClarifyHistory([])
+          setPromptState('confirming')
+        } else {
+          setClarifyHistory(prev => [...prev, { role: 'assistant', content: streamedText }])
+          setClarifyStreamText('')
+        }
+      },
+      (err) => {
+        setClarifying(false)
+        setLogEntries(prev => [
+          ...prev,
+          {
+            kind: 'log',
+            data: {
+              id: Date.now(),
+              task_id: taskId,
+              level: 'error',
+              source: 'system',
+              message: `要件確認エラー: ${err}`,
+              created_at: new Date().toISOString(),
+            },
+          },
+        ])
+      }
+    )
+  }
+
+  async function handleSkipClarify() {
+    setPromptState('generating')
+    setGenerating(true)
+    setGeneratedPrompt('')
+    setClarifyHistory([])
+    setClarifyStreamText('')
+
+    await generatePromptStream(
+      taskId,
+      instruction.trim(),
+      feedback,
+      (chunk) => setGeneratedPrompt(prev => prev + chunk),
+      () => {
+        setGenerating(false)
+        setPromptState('confirming')
+      },
+      (err) => {
+        setGenerating(false)
+        setPromptState('idle')
+        setLogEntries(prev => [
+          ...prev,
+          {
+            kind: 'log',
+            data: {
+              id: Date.now(),
+              task_id: taskId,
+              level: 'error',
+              source: 'system',
+              message: `プロンプト生成エラー: ${err}`,
+              created_at: new Date().toISOString(),
+            },
+          },
+        ])
+      }
+    )
+  }
+
   async function handleGeneratePrompt() {
     if (!instruction.trim() || generating) return
     setGenerating(true)
@@ -356,6 +500,13 @@ export default function TaskDetail() {
     setFeedback('')
   }
 
+  function handleCancelClarify() {
+    setPromptState('idle')
+    setClarifyHistory([])
+    setClarifyStreamText('')
+    setClarifyInput('')
+  }
+
   async function handleGitPush() {
     if (pushing || streaming) return
     setPushing(true)
@@ -410,7 +561,7 @@ export default function TaskDetail() {
   }
 
   const canGenerate =
-    task?.status === 'idle' && !streaming && !generating && instruction.trim().length > 0 && promptState === 'idle'
+    task?.status === 'idle' && !streaming && !generating && !clarifying && instruction.trim().length > 0 && promptState === 'idle'
 
   const showStopButton =
     task && (task.status === 'running' || task.status === 'idle' || task.status === 'testing')
@@ -509,7 +660,7 @@ export default function TaskDetail() {
 
         <div className="task-detail-body" ref={bodyRef}>
           {/* Running status banner */}
-          {(streaming || task.status === 'running' || task.status === 'initializing' || generating) && (
+          {(streaming || task.status === 'running' || task.status === 'initializing' || generating || clarifying) && (
             <div style={{
               background: '#1e3a5f',
               borderBottom: '1px solid #2563eb',
@@ -522,7 +673,9 @@ export default function TaskDetail() {
               flexShrink: 0,
             }}>
               <span className="spinner" />
-              {generating
+              {clarifying
+                ? '要件を確認しています...'
+                : generating
                 ? 'プロンプト生成中...'
                 : task.status === 'initializing'
                 ? 'コンテナを準備中... (30秒〜1分かかります)'
@@ -583,14 +736,140 @@ export default function TaskDetail() {
                 <div className="instruction-footer">
                   <button
                     className="btn-primary"
+                    onClick={handleStartClarify}
+                    disabled={!canGenerate}
+                  >
+                    要件を確認する
+                  </button>
+                  <button
+                    className="btn-secondary"
                     onClick={handleGeneratePrompt}
                     disabled={!canGenerate}
                   >
-                    プロンプトを生成
+                    スキップしてプロンプトを生成
                   </button>
                   {(streaming || task.status !== 'idle') && statusMessage && (
                     <span className="instruction-status">{statusMessage}</span>
                   )}
+                </div>
+              </>
+            )}
+
+            {promptState === 'clarifying' && (
+              <>
+                <p className="instruction-panel-title">
+                  要件確認
+                  <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 'normal', marginLeft: '8px' }}>
+                    — Claudeが不明点を質問します
+                  </span>
+                </p>
+
+                {/* Chat history */}
+                <div style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  marginBottom: '8px',
+                  minHeight: 0,
+                }}>
+                  {/* Original instruction */}
+                  <div style={{
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    fontSize: '0.82rem',
+                    color: '#64748b',
+                  }}>
+                    <span style={{ color: '#475569', fontSize: '0.72rem' }}>指示: </span>
+                    {instruction}
+                  </div>
+
+                  {clarifyHistory.map((msg, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: msg.role === 'assistant' ? '#0f172a' : '#1e3a5f',
+                        border: `1px solid ${msg.role === 'assistant' ? '#334155' : '#2563eb'}`,
+                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        fontSize: '0.82rem',
+                        color: msg.role === 'assistant' ? '#e2e8f0' : '#bfdbfe',
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      <span style={{ fontSize: '0.72rem', color: msg.role === 'assistant' ? '#6366f1' : '#60a5fa', marginBottom: '4px', display: 'block' }}>
+                        {msg.role === 'assistant' ? 'Claude' : 'あなた'}
+                      </span>
+                      {msg.content}
+                    </div>
+                  ))}
+
+                  {/* Streaming response */}
+                  {clarifying && (
+                    <div style={{
+                      background: '#0f172a',
+                      border: '1px solid #334155',
+                      borderRadius: '6px',
+                      padding: '8px 12px',
+                      fontSize: '0.82rem',
+                      color: '#94a3b8',
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: 1.6,
+                    }}>
+                      <span style={{ fontSize: '0.72rem', color: '#6366f1', marginBottom: '4px', display: 'block' }}>Claude</span>
+                      {clarifyStreamText || '考え中...'}
+                    </div>
+                  )}
+                </div>
+
+                {/* Answer input — only show if Claude has already asked a question */}
+                {clarifyHistory.length > 0 && clarifyHistory[clarifyHistory.length - 1].role === 'assistant' && !clarifying && (
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexShrink: 0 }}>
+                    <textarea
+                      className="instruction-textarea"
+                      value={clarifyInput}
+                      onChange={e => setClarifyInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleSendClarifyAnswer()
+                        }
+                      }}
+                      placeholder="回答を入力してください... (Enter で送信)"
+                      style={{ flex: 1, minHeight: '60px', marginBottom: 0 }}
+                      disabled={clarifying}
+                    />
+                  </div>
+                )}
+
+                <div className="instruction-footer" style={{ flexShrink: 0 }}>
+                  {clarifyHistory.length > 0 && clarifyHistory[clarifyHistory.length - 1].role === 'assistant' && !clarifying && (
+                    <button
+                      className="btn-primary"
+                      onClick={handleSendClarifyAnswer}
+                      disabled={!clarifyInput.trim() || clarifying}
+                    >
+                      回答を送信
+                    </button>
+                  )}
+                  <button
+                    className="btn-secondary"
+                    onClick={handleSkipClarify}
+                    disabled={clarifying}
+                  >
+                    スキップしてプロンプトを生成
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    onClick={handleCancelClarify}
+                    disabled={clarifying}
+                  >
+                    キャンセル
+                  </button>
                 </div>
               </>
             )}

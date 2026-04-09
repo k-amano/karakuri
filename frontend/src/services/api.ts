@@ -98,6 +98,52 @@ export async function getLogs(taskId: number, limit = 500): Promise<TaskLog[]> {
   return res.data
 }
 
+export async function clarifyStream(
+  taskId: number,
+  instruction: string,
+  history: { role: 'assistant' | 'user'; content: string }[],
+  onChunk: (text: string) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+): Promise<void> {
+  try {
+    const response = await fetch(
+      `/api/v1/tasks/${taskId}/instructions/clarify`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${AUTH_TOKEN}`,
+        },
+        body: JSON.stringify({ instruction, history }),
+      }
+    )
+
+    if (!response.ok) {
+      const text = await response.text()
+      onError(`HTTP ${response.status}: ${text}`)
+      return
+    }
+
+    if (!response.body) {
+      onError('No response body')
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      if (chunk) onChunk(chunk)
+    }
+    onDone()
+  } catch (err) {
+    onError(err instanceof Error ? err.message : String(err))
+  }
+}
+
 export async function generatePromptStream(
   taskId: number,
   content: string,
