@@ -259,7 +259,7 @@ export default function TaskCreate() {
                   className="form-input"
                   value={branchName}
                   onChange={e => setBranchName(e.target.value)}
-                  placeholder="空白の場合は karakuri/task-{id} が自動設定されます"
+                  placeholder="空白の場合は xolvien/task-{id} が自動設定されます"
                 />
               </div>
 

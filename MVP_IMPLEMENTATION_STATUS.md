@@ -37,7 +37,7 @@ The Karakuri MVP backend has been successfully implemented and tested. All core 
 - Auth endpoints working
 
 ### ✅ Step 4: Docker Workspace Image
-- Built `karakuri-workspace:latest` image
+- Built `xolvien-workspace:latest` image
 - Based on Python 3.11-slim
 - Includes git, Node.js, build tools
 - Custom entrypoint script for git configuration
@@ -63,7 +63,7 @@ The Karakuri MVP backend has been successfully implemented and tested. All core 
   - Task logging to database
 - **Verified Working**:
   - Created task ID 2 with public repo
-  - Container `karakuri-task-2` spawned successfully
+  - Container `xolvien-task-2` spawned successfully
   - Repository cloned to `/workspace/repo`
   - Branch checked out (master)
   - Status: IDLE (ready for instructions)
@@ -171,9 +171,9 @@ The frontend needs to be implemented with three main pages:
 ## Current System Status
 
 ### Running Services
-- **PostgreSQL**: Running on port 5433 (karakuri-db container)
+- **PostgreSQL**: Running on port 5433 (xolvien-db container)
 - **FastAPI Backend**: Running on port 8000
-- **Test Container**: karakuri-task-2 (IDLE, ready for instructions)
+- **Test Container**: xolvien-task-2 (IDLE, ready for instructions)
 
 ### Database State
 - 1 user (default)
@@ -183,7 +183,7 @@ The frontend needs to be implemented with three main pages:
 - 1 completed instruction
 
 ### Docker Images
-- `karakuri-workspace:latest` (848MB) - Claude Code execution environment
+- `xolvien-workspace:latest` (848MB) - Claude Code execution environment
 - `postgres:16-alpine` - Database
 
 ### API Endpoints Implemented
@@ -236,7 +236,7 @@ The frontend needs to be implemented with three main pages:
 # 1. Create repository
 curl -X POST /api/v1/repositories \
   -H "Authorization: Bearer dev-token-12345" \
-  -d '{"name":"karakuri","url":"https://github.com/octocat/Hello-World.git"}'
+  -d '{"name":"xolvien","url":"https://github.com/octocat/Hello-World.git"}'
 # ✅ Repository created (ID: 2)
 
 # 2. Create task (spawns container)
@@ -244,7 +244,7 @@ curl -X POST /api/v1/tasks \
   -H "Authorization: Bearer dev-token-12345" \
   -d '{"repository_id":2,"title":"Test task","branch_name":"master"}'
 # ✅ Task created (ID: 2)
-# ✅ Container karakuri-task-2 spawned
+# ✅ Container xolvien-task-2 spawned
 # ✅ Repository cloned
 # ✅ Status: IDLE
 
@@ -265,7 +265,7 @@ curl /api/v1/tasks/2/logs -H "Authorization: Bearer dev-token-12345"
 
 ### Start Development Environment
 ```bash
-cd /home/administrator/Projects/karakuri
+cd /home/administrator/Projects/xolvien
 
 # 1. Start database
 docker compose up -d db
@@ -282,12 +282,12 @@ npm run dev
 ```
 
 ### Environment Variables
-Backend uses `/home/administrator/Projects/karakuri/backend/.env`:
+Backend uses `/home/administrator/Projects/xolvien/backend/.env`:
 ```env
-DATABASE_URL=postgresql+asyncpg://karakuri:karakuri@localhost:5433/karakuri
+DATABASE_URL=postgresql+asyncpg://xolvien:xolvien@localhost:5433/xolvien
 DEV_AUTH_TOKEN=dev-token-12345
 ANTHROPIC_API_KEY=your-api-key-here
-WORKSPACE_IMAGE=karakuri-workspace:latest
+WORKSPACE_IMAGE=xolvien-workspace:latest
 ```
 
 ### Test the Backend

@@ -7,7 +7,7 @@ from app.api import auth, repositories, tasks, instructions, logs, test_runs
 settings = get_settings()
 
 app = FastAPI(
-    title="Karakuri API",
+    title="Xolvien API",
     description="AI-driven development platform powered by Docker and Claude Code",
     version="0.1.0",
 )
@@ -43,7 +43,7 @@ async def health_check():
 async def root():
     """Root endpoint."""
     return {
-        "message": "Karakuri API",
+        "message": "Xolvien API",
         "version": "0.1.0",
         "docs": "/docs",
     }

@@ -144,7 +144,7 @@ async def create_task(
 
     # Auto-generate branch name if not specified
     if not task_data.branch_name:
-        task.branch_name = f"karakuri/task-{task.id}"
+        task.branch_name = f"xolvien/task-{task.id}"
         await db.commit()
         await db.refresh(task)
 

@@ -1,10 +1,10 @@
-# Karakuri — 基本設計書
+# Xolvien — 基本設計書
 
 ## 1. 設計概要
 
 ### 1.1 本書の範囲
 
-本書ではKarakuriの基本設計として以下の10の領域を定義する。
+本書ではXolvienの基本設計として以下の10の領域を定義する。
 
 1. 設計概要（システム全体構成図）
 2. API設計（バックエンドエンドポイント一覧）
@@ -1033,7 +1033,7 @@ CREATE INDEX idx_generated_documents_repository_id ON generated_documents(reposi
 ```
 ┌───────────────────────────────────────────────────┐
 │ ヘッダー                                           │
-│  [Karakuri ロゴ] [ダッシュボード] [設定]  🔔(3) [👤] │
+│  [Xolvien ロゴ] [ダッシュボード] [設定]  🔔(3) [👤] │
 ├───────────────────────────────────────────────────┤
 │                                                    │
 │  メインコンテンツ領域                                │
@@ -1250,9 +1250,9 @@ DASHBOARD → DOCS_GEN → (プレビュー確認) → ダウンロード
 
 ### 5.1 イメージ構成
 
-Karakuriでは3つのDockerイメージを使用する。
+Xolvienでは3つのDockerイメージを使用する。
 
-#### karakuri-backend（バックエンドサーバー）
+#### xolvien-backend（バックエンドサーバー）
 
 ```dockerfile
 FROM python:3.12-slim
@@ -1283,7 +1283,7 @@ EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-#### karakuri-workspace（タスク用ワークスペース）
+#### xolvien-workspace（タスク用ワークスペース）
 
 ```dockerfile
 FROM mcr.microsoft.com/playwright:v1.40.0-jammy
@@ -1309,7 +1309,7 @@ WORKDIR /workspace
 CMD ["tail", "-f", "/dev/null"]
 ```
 
-#### karakuri-frontend（フロントエンド）
+#### xolvien-frontend（フロントエンド）
 
 ```dockerfile
 FROM node:20-slim AS build
@@ -1326,10 +1326,10 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 ```
 
-### 5.2 開発環境の Docker Compose構成（Karakuri自体）
+### 5.2 開発環境の Docker Compose構成（Xolvien自体）
 
 ```yaml
-# docker-compose.yml（Karakuri本体の開発・運用構成）
+# docker-compose.yml（Xolvien本体の開発・運用構成）
 version: "3.9"
 
 services:
@@ -1345,15 +1345,15 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://karakuri:karakuri@db:5432/karakuri
+      - DATABASE_URL=postgresql://xolvien:xolvien@db:5432/xolvien
       - REDIS_URL=redis://redis:6379/0
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock  # Docker-in-Docker
-      - karakuri-data:/data       # テストデータ・テンプレート等
-      - karakuri-files:/files     # アップロードファイル
+      - xolvien-data:/data       # テストデータ・テンプレート等
+      - xolvien-files:/files     # アップロードファイル
     depends_on:
       - db
       - redis
@@ -1362,12 +1362,12 @@ services:
     build: ./backend
     command: celery -A worker worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://karakuri:karakuri@db:5432/karakuri
+      - DATABASE_URL=postgresql://xolvien:xolvien@db:5432/xolvien
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - karakuri-data:/data
-      - karakuri-files:/files
+      - xolvien-data:/data
+      - xolvien-files:/files
     depends_on:
       - db
       - redis
@@ -1375,9 +1375,9 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: karakuri
-      POSTGRES_PASSWORD: karakuri
-      POSTGRES_DB: karakuri
+      POSTGRES_USER: xolvien
+      POSTGRES_PASSWORD: xolvien
+      POSTGRES_DB: xolvien
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -1398,8 +1398,8 @@ services:
 
 volumes:
   pgdata:
-  karakuri-data:
-  karakuri-files:
+  xolvien-data:
+  xolvien-files:
 ```
 
 ### 5.3 タスク用 Docker Compose構成（動的生成）
@@ -1412,8 +1412,8 @@ version: "3.9"
 
 services:
   workspace:
-    image: karakuri-workspace
-    container_name: karakuri-task-{task_id}-workspace
+    image: xolvien-workspace
+    container_name: xolvien-task-{task_id}-workspace
     volumes:
       - task-{task_id}-repo:/workspace/repo
       - /data/{repo_name}/test-data:/workspace/test-data:ro
@@ -1431,7 +1431,7 @@ services:
   # 以下はテスト実行時のみ起動
   db:
     image: postgres:16
-    container_name: karakuri-task-{task_id}-db
+    container_name: xolvien-task-{task_id}-db
     environment:
       POSTGRES_DB: test_db
       POSTGRES_PASSWORD: test
@@ -1444,7 +1444,7 @@ services:
 
   redis:
     image: redis:7
-    container_name: karakuri-task-{task_id}-redis
+    container_name: xolvien-task-{task_id}-redis
     networks:
       - task-{task_id}-net
     profiles:
@@ -1452,7 +1452,7 @@ services:
 
   app:
     build: /workspace/repo
-    container_name: karakuri-task-{task_id}-app
+    container_name: xolvien-task-{task_id}-app
     command: "npm run dev"
     ports:
       - "3000"
@@ -1509,7 +1509,7 @@ workspaceコンテナ内で git clone / checkout
 各タスクは独立したDockerネットワークで隔離される。タスクAのコンテナからタスクBのコンテナにはアクセスできない。
 
 ```
-karakuri-network（Karakuri本体）
+xolvien-network（Xolvien本体）
   ├─ frontend
   ├─ backend
   ├─ db (PostgreSQL)
@@ -1531,9 +1531,9 @@ task-2-net（タスク2専用）
 
 | ボリューム | 用途 | ライフサイクル |
 |---|---|---|
-| pgdata | Karakuri本体のPostgreSQLデータ | 永続 |
-| karakuri-data | テストデータ、テンプレート等の共有ファイル | 永続 |
-| karakuri-files | アップロードファイル | 永続 |
+| pgdata | Xolvien本体のPostgreSQLデータ | 永続 |
+| xolvien-data | テストデータ、テンプレート等の共有ファイル | 永続 |
+| xolvien-files | アップロードファイル | 永続 |
 | task-{id}-repo | タスクのリポジトリ作業領域 | タスク削除時に破棄 |
 | task-{id}-results | テスト結果・スクリーンショット | タスク削除時に破棄 |
 
@@ -2165,7 +2165,7 @@ def detect_spec_changes(original_text: str, repository_id: int) -> list:
 | Issueコメント追加 | /repos/{owner}/{repo}/issues/{number}/comments | POST |
 | Issueクローズ | /repos/{owner}/{repo}/issues/{number} | PATCH |
 | PR作成 | /repos/{owner}/{repo}/pulls | POST |
-| Webhookイベント受信 | （Karakuri側エンドポイント） | POST |
+| Webhookイベント受信 | （Xolvien側エンドポイント） | POST |
 
 #### GitHub API認証方式
 
@@ -2306,22 +2306,22 @@ async def call_anthropic_api(
 
 ```yaml
 # cloudflared/config.yml
-tunnel: karakuri-tunnel
+tunnel: xolvien-tunnel
 credentials-file: /etc/cloudflared/credentials.json
 
 ingress:
   # GitHub Webhookエンドポイントのみ外部公開
-  - hostname: karakuri.example.com
+  - hostname: xolvien.example.com
     path: /api/v1/webhooks/github
     service: http://backend:8000
 
   # GitHub OAuthコールバック
-  - hostname: karakuri.example.com
+  - hostname: xolvien.example.com
     path: /api/v1/auth/github/callback
     service: http://backend:8000
 
   # Web UIは必要に応じて公開（VPN経由推奨）
-  - hostname: karakuri.example.com
+  - hostname: xolvien.example.com
     service: http://frontend:80
 
   # デフォルト: 404
@@ -2332,10 +2332,10 @@ ingress:
 
 ```bash
 # 1. Cloudflare Tunnelの作成（初回のみ）
-cloudflared tunnel create karakuri-tunnel
+cloudflared tunnel create xolvien-tunnel
 
 # 2. DNSの設定（初回のみ）
-cloudflared tunnel route dns karakuri-tunnel karakuri.example.com
+cloudflared tunnel route dns xolvien-tunnel xolvien.example.com
 
 # 3. Docker Compose で自動起動（docker-compose.ymlに記載済み）
 ```
@@ -2344,7 +2344,7 @@ cloudflared tunnel route dns karakuri-tunnel karakuri.example.com
 
 | 項目 | 値 |
 |---|---|
-| Payload URL | https://karakuri.example.com/api/v1/webhooks/github |
+| Payload URL | https://xolvien.example.com/api/v1/webhooks/github |
 | Content type | application/json |
 | Secret | （設定画面で生成されたトークン） |
 | Events | Issues, Issue comments |

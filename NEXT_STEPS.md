@@ -194,7 +194,7 @@ const runTests = async () => {
 
 ### Backend (Already Running)
 ```bash
-cd /home/administrator/Projects/karakuri/backend
+cd /home/administrator/Projects/xolvien/backend
 source venv/bin/activate
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -206,7 +206,7 @@ docker compose up -d db
 
 ### Frontend (To Start)
 ```bash
-cd /home/administrator/Projects/karakuri/frontend
+cd /home/administrator/Projects/xolvien/frontend
 npm install
 npm run dev
 ```
@@ -232,7 +232,7 @@ You'll know the MVP is complete when you can:
 
 - Backend API docs: http://localhost:8000/docs
 - Check backend logs: `tail -f /tmp/claude-1000/...`
-- Check database: `docker compose exec db psql -U karakuri`
+- Check database: `docker compose exec db psql -U xolvien`
 - View containers: `docker ps`
 
 ## Architecture Reminder

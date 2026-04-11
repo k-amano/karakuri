@@ -22,10 +22,10 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 RUN npm install -g @anthropic-ai/claude-code
 
 # Create non-root user for Claude Code agent mode (--dangerously-skip-permissions requires non-root)
-RUN useradd -m -s /bin/bash karakuri
+RUN useradd -m -s /bin/bash xolvien
 
-# Create workspace directory and grant ownership to karakuri
-RUN mkdir -p ${WORKSPACE_DIR} && chown karakuri:karakuri ${WORKSPACE_DIR}
+# Create workspace directory and grant ownership to xolvien
+RUN mkdir -p ${WORKSPACE_DIR} && chown xolvien:xolvien ${WORKSPACE_DIR}
 WORKDIR ${WORKSPACE_DIR}
 
 # Copy entrypoint script

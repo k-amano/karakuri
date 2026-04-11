@@ -39,7 +39,7 @@ export async function createTask(data: {
   repository_id: number
   title: string
   description?: string
-  branch_name: string
+  branch_name?: string
 }): Promise<Task> {
   const res = await apiClient.post<Task>('/api/v1/tasks', data)
   return res.data

@@ -107,7 +107,7 @@ export default function Dashboard() {
   return (
     <>
       <header className="app-header">
-        <h1>Karakuri</h1>
+        <h1>Xolvien</h1>
         <button
           className="btn-primary"
           onClick={() => navigate('/tasks/new')}

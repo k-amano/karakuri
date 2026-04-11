@@ -572,7 +572,7 @@ export default function TaskDetail() {
     return (
       <>
         <header className="app-header">
-          <h1>Karakuri</h1>
+          <h1>Xolvien</h1>
         </header>
         <div className="page-content">
           <Link to="/" className="back-link">
@@ -588,7 +588,7 @@ export default function TaskDetail() {
     return (
       <>
         <header className="app-header">
-          <h1>Karakuri</h1>
+          <h1>Xolvien</h1>
         </header>
         <div className="loading-state">読み込み中...</div>
       </>
@@ -599,7 +599,7 @@ export default function TaskDetail() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Top bar */}
       <header className="app-header">
-        <h1>Karakuri</h1>
+        <h1>Xolvien</h1>
       </header>
 
       <div className="task-detail-container">

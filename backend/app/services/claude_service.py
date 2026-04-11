@@ -15,7 +15,7 @@ from app.services.docker_service import get_docker_service
 # Python script for text-only generation (prompt generation)
 _RUNNER_SCRIPT = """\
 import subprocess, sys, os
-prompt = open('/tmp/karakuri_prompt.txt', encoding='utf-8').read()
+prompt = open('/tmp/xolvien_prompt.txt', encoding='utf-8').read()
 env = {**os.environ, 'HOME': '/root'}
 proc = subprocess.Popen(
     ['claude', '-p', prompt, '--output-format', 'text'],
@@ -31,14 +31,14 @@ sys.exit(proc.returncode)
 """
 
 # Python script for agent mode execution (file read/write/bash tools enabled)
-# Drops privileges to non-root karakuri user so --dangerously-skip-permissions is allowed
+# Drops privileges to non-root xolvien user so --dangerously-skip-permissions is allowed
 _RUNNER_SCRIPT_AGENT = """\
 import subprocess, sys, os, shutil, pwd
 
-prompt = open('/tmp/karakuri_prompt.txt', encoding='utf-8').read()
+prompt = open('/tmp/xolvien_prompt.txt', encoding='utf-8').read()
 
 try:
-    pw = pwd.getpwnam('karakuri')
+    pw = pwd.getpwnam('xolvien')
     uid, gid, home = pw.pw_uid, pw.pw_gid, pw.pw_dir
 except KeyError:
     uid = gid = None
@@ -179,12 +179,12 @@ README:
 説明や前置きは不要です。質問か「PROMPT_READY」で始めてください。
 """
 
-        self._write_text_to_container(task.container_id, "/tmp/karakuri_prompt.txt", clarify_prompt)
-        self._write_text_to_container(task.container_id, "/tmp/karakuri_runner.py", _RUNNER_SCRIPT)
+        self._write_text_to_container(task.container_id, "/tmp/xolvien_prompt.txt", clarify_prompt)
+        self._write_text_to_container(task.container_id, "/tmp/xolvien_runner.py", _RUNNER_SCRIPT)
 
         async for chunk in self.docker_service.execute_command_stream(
             task.container_id,
-            "python3 /tmp/karakuri_runner.py",
+            "python3 /tmp/xolvien_runner.py",
             "/workspace/repo",
         ):
             yield chunk
@@ -284,12 +284,12 @@ README:
 プロンプト本文のみを出力してください。説明や前置きは不要です。
 """
 
-        self._write_text_to_container(task.container_id, "/tmp/karakuri_prompt.txt", meta_prompt)
-        self._write_text_to_container(task.container_id, "/tmp/karakuri_runner.py", _RUNNER_SCRIPT_AGENT)
+        self._write_text_to_container(task.container_id, "/tmp/xolvien_prompt.txt", meta_prompt)
+        self._write_text_to_container(task.container_id, "/tmp/xolvien_runner.py", _RUNNER_SCRIPT_AGENT)
 
         async for chunk in self.docker_service.execute_command_stream(
             task.container_id,
-            "python3 /tmp/karakuri_runner.py",
+            "python3 /tmp/xolvien_runner.py",
             "/workspace/repo",
         ):
             yield chunk
@@ -347,15 +347,15 @@ README:
             yield f"[SYSTEM] {instruction_content}\n\n"
 
             # Write prompt and agent runner script into the container
-            self._write_text_to_container(task.container_id, "/tmp/karakuri_prompt.txt", instruction_content)
-            self._write_text_to_container(task.container_id, "/tmp/karakuri_runner.py", _RUNNER_SCRIPT_AGENT)
+            self._write_text_to_container(task.container_id, "/tmp/xolvien_prompt.txt", instruction_content)
+            self._write_text_to_container(task.container_id, "/tmp/xolvien_runner.py", _RUNNER_SCRIPT_AGENT)
 
             yield "[Claude] Claude Code CLIを実行しています...\n\n"
 
             full_response = ""
             async for chunk in self.docker_service.execute_command_stream(
                 task.container_id,
-                "python3 /tmp/karakuri_runner.py",
+                "python3 /tmp/xolvien_runner.py",
                 "/workspace/repo",
             ):
                 yield chunk
@@ -374,12 +374,12 @@ README:
             commit_msg = instruction_content.replace("\n", " ")[:72]
             # Write commit message to temp file to avoid shell escaping issues
             self._write_text_to_container(
-                task.container_id, "/tmp/karakuri_commit_msg.txt", commit_msg
+                task.container_id, "/tmp/xolvien_commit_msg.txt", commit_msg
             )
             commit_cmd = (
                 "git add -A && "
                 "git diff --cached --quiet && echo '[GIT] 変更なし（コミットスキップ）' || "
-                "git commit -F /tmp/karakuri_commit_msg.txt"
+                "git commit -F /tmp/xolvien_commit_msg.txt"
             )
             _, commit_out, _ = self.docker_service.execute_command(
                 task.container_id, commit_cmd, "/workspace/repo"

@@ -19,8 +19,8 @@ class Settings(BaseSettings):
 
     # Docker
     docker_socket: str = "/var/run/docker.sock"
-    workspace_image: str = "karakuri-workspace:latest"
-    task_data_path: str = "/tmp/karakuri/tasks"
+    workspace_image: str = "xolvien-workspace:latest"
+    task_data_path: str = "/tmp/xolvien/tasks"
 
     # Claude Code (no longer used; Claude Code CLI is used instead)
     anthropic_api_key: str = ""

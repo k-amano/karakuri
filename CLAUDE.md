@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Karakuri** is an AI-driven development platform that automates code generation using Docker containers and Claude Code CLI. It provides isolated workspaces per task, real-time log streaming via WebSocket, and a task/instruction management system.
+**Xolvien** is an AI-driven development platform that automates code generation using Docker containers and Claude Code CLI. It provides isolated workspaces per task, real-time log streaming via WebSocket, and a task/instruction management system.
 
 Stack: Python 3.11 + FastAPI + SQLAlchemy 2.0 (async) + PostgreSQL 16 + Docker + React 18 + Vite + TypeScript.
 
@@ -17,7 +17,7 @@ Stack: Python 3.11 + FastAPI + SQLAlchemy 2.0 (async) + PostgreSQL 16 + Docker +
 docker compose up -d db
 
 # Build the workspace Docker image used for task containers
-docker build -t karakuri-workspace:latest ./docker/workspace/
+docker build -t xolvien-workspace:latest ./docker/workspace/
 
 # Run the backend (activate venv first)
 cd backend
@@ -72,9 +72,9 @@ mypy app/
 
 Copy `.env.example` to `.env` in the backend directory. Key variables:
 
-- `DATABASE_URL` — `postgresql+asyncpg://karakuri:karakuri@localhost:5433/karakuri`
+- `DATABASE_URL` — `postgresql+asyncpg://xolvien:xolvien@localhost:5433/xolvien`
 - `DEV_AUTH_TOKEN` — Bearer token for MVP auth (default: `dev-token-12345`)
-- `WORKSPACE_IMAGE` — Docker image for task containers (default: `karakuri-workspace:latest`)
+- `WORKSPACE_IMAGE` — Docker image for task containers (default: `xolvien-workspace:latest`)
 - `ANTHROPIC_API_KEY` — Required when replacing the Claude Code simulation with the real CLI
 - `DOCKER_SOCKET` — Path to Docker daemon socket
 
@@ -136,7 +136,7 @@ Each `Task` stores its `container_id`, `container_name`, and `workspace_path`. E
 
 ### Docker Workspace Image
 
-`docker/workspace/Dockerfile` — Python 3.11-slim + Git + Node.js 18 + build tools + Claude Code CLI (npm install). The entrypoint configures git globals; the container stays alive with `tail -f /dev/null`. Each task gets its own volume `karakuri-task-{task_id}-data` mounted at `/workspace`.
+`docker/workspace/Dockerfile` — Python 3.11-slim + Git + Node.js 18 + build tools + Claude Code CLI (npm install). The entrypoint configures git globals; the container stays alive with `tail -f /dev/null`. Each task gets its own volume `xolvien-task-{task_id}-data` mounted at `/workspace`.
 
 ## Implementation Status
 

@@ -21,7 +21,7 @@ async def get_or_create_default_user(db: AsyncSession) -> User:
     if not user:
         user = User(
             username="default",
-            email="default@karakuri.local",
+            email="default@xolvien.com",
             full_name="Default User",
         )
         db.add(user)

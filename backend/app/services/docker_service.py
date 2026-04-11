@@ -38,11 +38,11 @@ class DockerService:
         Returns:
             Tuple of (container_id, container_name)
         """
-        container_name = f"karakuri-task-{task_id}"
+        container_name = f"xolvien-task-{task_id}"
         workspace_path = f"{settings.task_data_path}/{task_id}"
 
         # Create volume for persistent storage
-        volume_name = f"karakuri-task-{task_id}-data"
+        volume_name = f"xolvien-task-{task_id}-data"
 
         try:
             # Create volume
@@ -68,8 +68,8 @@ class DockerService:
                     "TASK_ID": str(task_id),
                     "REPOSITORY_URL": repository_url,
                     "BRANCH_NAME": branch_name,
-                    "GIT_USER_NAME": "Karakuri Bot",
-                    "GIT_USER_EMAIL": "bot@karakuri.local",
+                    "GIT_USER_NAME": "Xolvien Bot",
+                    "GIT_USER_EMAIL": "bot@xolvien.com",
                     "GIT_TERMINAL_PROMPT": "0",
                 },
                 working_dir="/workspace",
@@ -95,13 +95,13 @@ class DockerService:
             if exit_code != 0:
                 raise RuntimeError(f"Failed to clone repository: {output.decode()}")
 
-            # Grant ownership of cloned repo to karakuri user (for agent mode)
+            # Grant ownership of cloned repo to xolvien user (for agent mode)
             container.exec_run(
-                ["bash", "-c", "chown -R karakuri:karakuri /workspace/repo 2>/dev/null || true"],
+                ["bash", "-c", "chown -R xolvien:xolvien /workspace/repo 2>/dev/null || true"],
                 workdir="/workspace",
             )
 
-            # Allow root to run git commands in karakuri-owned repo
+            # Allow root to run git commands in xolvien-owned repo
             container.exec_run(
                 ["bash", "-c", "git config --global --add safe.directory /workspace/repo"],
                 workdir="/workspace",
@@ -233,7 +233,7 @@ class DockerService:
         self._remove_container(container_id)
 
         # Remove volume
-        volume_name = f"karakuri-task-{task_id}-data"
+        volume_name = f"xolvien-task-{task_id}-data"
         try:
             volume = self.client.volumes.get(volume_name)
             volume.remove()
