@@ -110,17 +110,17 @@ export default function TaskDetail() {
   const seenLogIdsRef = useRef<Set<number>>(new Set())
   const streamKeyRef = useRef(0)
 
-  // Resizable split pane
+  // Resizable split pane (left/right)
   const bodyRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
-  const [logHeightPercent, setLogHeightPercent] = useState(30)
+  const [logWidthPercent, setLogWidthPercent] = useState(50)
 
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
       if (!isDraggingRef.current || !bodyRef.current) return
       const rect = bodyRef.current.getBoundingClientRect()
-      const pct = ((e.clientY - rect.top) / rect.height) * 100
-      setLogHeightPercent(Math.min(80, Math.max(20, pct)))
+      const pct = ((e.clientX - rect.left) / rect.width) * 100
+      setLogWidthPercent(Math.min(80, Math.max(20, pct)))
     }
     function onMouseUp() {
       isDraggingRef.current = false
@@ -138,7 +138,7 @@ export default function TaskDetail() {
   function handleResizeStart(e: React.MouseEvent) {
     e.preventDefault()
     isDraggingRef.current = true
-    document.body.style.cursor = 'row-resize'
+    document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }
 
@@ -659,70 +659,72 @@ export default function TaskDetail() {
         </div>
 
         <div className="task-detail-body" ref={bodyRef}>
-          {/* Running status banner */}
-          {(streaming || task.status === 'running' || task.status === 'initializing' || generating || clarifying) && (
-            <div style={{
-              background: '#1e3a5f',
-              borderBottom: '1px solid #2563eb',
-              padding: '6px 16px',
-              fontSize: '0.82rem',
-              color: '#93c5fd',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              flexShrink: 0,
-            }}>
-              <span className="spinner" />
-              {clarifying
-                ? '要件を確認しています...'
-                : generating
-                ? 'プロンプト生成中...'
-                : task.status === 'initializing'
-                ? 'コンテナを準備中... (30秒〜1分かかります)'
-                : '実行中... (完了まで1〜3分かかることがあります)'}
-            </div>
-          )}
-
-          {/* Log Viewer */}
-          <div className="log-viewer" ref={logViewerRef} style={{ flex: `0 0 ${logHeightPercent}%` }}>
-            {logEntries.length === 0 ? (
-              <p className="log-empty">ログはまだありません...</p>
-            ) : (
-              logEntries.map((entry, idx) => {
-                if (entry.kind === 'log') {
-                  const log = entry.data
-                  return (
-                    <p key={`log-${log.id}-${idx}`} className={getLogLineClass(log.level)}>
-                      <span style={{ color: '#4b5563', marginRight: '8px' }}>
-                        {formatLogTimestamp(log.created_at)}
-                      </span>
-                      <span
-                        style={{
-                          color: '#6366f1',
-                          marginRight: '8px',
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        [{log.source}]
-                      </span>
-                      {log.message}
-                    </p>
-                  )
-                } else {
-                  return (
-                    <p key={entry.key} className="log-stream-chunk">
-                      {entry.text || '⏳ Claude Code CLI 起動中...'}
-                    </p>
-                  )
-                }
-              })
+          {/* Left: Log Viewer */}
+          <div style={{ display: 'flex', flexDirection: 'column', flex: `0 0 ${logWidthPercent}%`, minWidth: 0, overflow: 'hidden', paddingLeft: '24px' }}>
+            {/* Running status banner */}
+            {(streaming || task.status === 'running' || task.status === 'initializing' || generating || clarifying) && (
+              <div style={{
+                background: '#1e3a5f',
+                borderBottom: '1px solid #2563eb',
+                padding: '6px 16px',
+                fontSize: '0.82rem',
+                color: '#93c5fd',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexShrink: 0,
+              }}>
+                <span className="spinner" />
+                {clarifying
+                  ? '要件を確認しています...'
+                  : generating
+                  ? 'プロンプト生成中...'
+                  : task.status === 'initializing'
+                  ? 'コンテナを準備中... (30秒〜1分かかります)'
+                  : '実行中... (完了まで1〜3分かかることがあります)'}
+              </div>
             )}
+            <div className="log-viewer" ref={logViewerRef} style={{ flex: 1 }}>
+              {logEntries.length === 0 ? (
+                <p className="log-empty">ログはまだありません...</p>
+              ) : (
+                logEntries.map((entry, idx) => {
+                  if (entry.kind === 'log') {
+                    const log = entry.data
+                    return (
+                      <p key={`log-${log.id}-${idx}`} className={getLogLineClass(log.level)}>
+                        <span style={{ color: '#4b5563', marginRight: '8px' }}>
+                          {formatLogTimestamp(log.created_at)}
+                        </span>
+                        <span
+                          style={{
+                            color: '#6366f1',
+                            marginRight: '8px',
+                            fontSize: '0.75rem',
+                          }}
+                        >
+                          [{log.source}]
+                        </span>
+                        {log.message}
+                      </p>
+                    )
+                  } else {
+                    return (
+                      <p key={entry.key} className="log-stream-chunk">
+                        {entry.text || '⏳ Claude Code CLI 起動中...'}
+                      </p>
+                    )
+                  }
+                })
+              )}
+            </div>
           </div>
 
-          <div className="resize-handle" onMouseDown={handleResizeStart} />
+          {/* Vertical resize handle */}
+          <div className="resize-handle-vertical" onMouseDown={handleResizeStart} />
 
-          {/* Instruction Input Panel */}
-          <div className="instruction-panel" style={{ flex: `0 0 ${100 - logHeightPercent}%` }}>
+          {/* Right: Instruction Input Panel */}
+          <div className="instruction-panel" style={{ flex: 1, minWidth: 0 }}>
             {promptState === 'idle' && (
               <>
                 <p className="instruction-panel-title">Claudeへの指示</p>
