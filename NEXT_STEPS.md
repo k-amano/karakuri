@@ -1,263 +1,106 @@
-# Next Steps to Complete Karakuri MVP
+# Next Steps — Xolvien
 
-## What's Done ✅
+## 現在の状態
 
-The **backend is 100% complete and working**:
-- Docker container orchestration
-- Task management API
-- Claude Code execution (simulated)
-- Real-time WebSocket infrastructure
-- Database persistence
-- All critical services tested and verified
+フェーズ1（単体テスト自動化）まで実装済み。
 
-## What Remains 🚧
-
-Only **frontend UI implementation** (Step 9) and **test execution** (Step 10) remain.
-
-## Quick Win: Test the Backend Now!
-
-You can test the entire backend workflow right now using curl:
-
-### 1. Create a Task (Spawns Docker Container)
-```bash
-curl -X POST http://localhost:8000/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer dev-token-12345" \
-  -d '{
-    "repository_id": 2,
-    "title": "My First Task",
-    "description": "Testing Karakuri",
-    "branch_name": "main"
-  }'
+完成しているフロー:
+```
+指示入力 → 要件確認 → プロンプト承認 → 実装
+→ テストケース生成・承認 → テスト実行（自動修正ループ）
+→ 実装レビュー → Git Push
 ```
 
-Wait 5-10 seconds for the container to initialize, then:
+---
 
-### 2. Check Task Status
-```bash
-curl http://localhost:8000/api/v1/tasks/3 \
-  -H "Authorization: Bearer dev-token-12345"
-```
+## 次の実装ステップ（優先順位順）
 
-You should see `"status": "idle"` when ready.
+### 1. 結合テスト（フェーズ2）
 
-### 3. Execute an Instruction
-```bash
-curl -N -X POST http://localhost:8000/api/v1/tasks/3/instructions/execute-stream \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer dev-token-12345" \
-  -d '{"content": "Add a hello world function to the README"}'
-```
+単体テストと同様の流れで、DB・API 接続を伴うテストを実装する。
 
-Watch the real-time streaming output!
+**バックエンド:**
+- `claude_service.py` に `run_integration_tests()` を追加
+  - `TestType.INTEGRATION` で `TestRun` を作成
+  - テストコンテナ内で DB や API を起動した状態でテスト実行
+- `instructions.py` に `/run-integration-tests` エンドポイントを追加
 
-### 4. View Execution Logs
-```bash
-curl http://localhost:8000/api/v1/tasks/3/logs \
-  -H "Authorization: Bearer dev-token-12345" | jq
-```
+**フロントエンド:**
+- 単体テスト完了後に結合テストへ進むフローを追加
+- `PromptState` に `'integration_tests'` を追加
 
-## Complete the Frontend (Step 9)
+---
 
-The frontend structure is ready. You need to implement:
+### 2. E2E テスト（フェーズ3）
 
-### Option 1: Minimal MVP (Recommended - 2-3 hours)
+Playwright を使ったブラウザ操作テストの実装。
 
-Create only the essential files:
+**バックエンド:**
+- `claude_service.py` に `run_e2e_tests()` を追加
+  - `TestType.E2E` で `TestRun` を作成
+  - Playwright のスクリーンショットをフィードバックに含める
+  - テストレポートにスクリーンショットのパスを記録
 
-1. **`frontend/src/main.tsx`** - Entry point
-2. **`frontend/src/App.tsx`** - Basic routing
-3. **`frontend/src/services/api.ts`** - API client
-4. **`frontend/src/pages/Dashboard.tsx`** - Simple task list
-5. **`frontend/src/pages/TaskDetail.tsx`** - Instruction form + log viewer
+**フロントエンド:**
+- E2E テスト結果にスクリーンショットプレビューを表示
 
-Example structure:
+---
 
-```typescript
-// frontend/src/services/api.ts
-import axios from 'axios';
+### 3. PR 自動作成
 
-const api = axios.create({
-  baseURL: 'http://localhost:8000',
-  headers: {
-    'Authorization': 'Bearer dev-token-12345',
-    'Content-Type': 'application/json',
-  },
-});
+テスト完了・ユーザー承認後に GitHub PR を自動作成する。
 
-export const getTasks = () => api.get('/api/v1/tasks');
-export const getTask = (id: number) => api.get(`/api/v1/tasks/${id}`);
-export const createTask = (data: any) => api.post('/api/v1/tasks', data);
-export const executeInstruction = (taskId: number, content: string) =>
-  fetch(`http://localhost:8000/api/v1/tasks/${taskId}/instructions/execute-stream`, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer dev-token-12345',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ content }),
-  });
-```
+**バックエンド:**
+- `git/push` エンドポイントを拡張、または新規に `git/create-pr` エンドポイントを追加
+- `gh pr create` を使ってコンテナ内から PR を作成
+- PR タイトル・本文を Claude が生成
 
-```typescript
-// frontend/src/App.tsx
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Dashboard from './pages/Dashboard';
-import TaskDetail from './pages/TaskDetail';
+**フロントエンド:**
+- 実装レビュー画面の「承認」後に PR 作成オプションを表示
 
-function App() {
-  return (
-    <BrowserRouter>
-      <div style={{ padding: '20px' }}>
-        <h1>Karakuri MVP</h1>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/tasks/:id" element={<TaskDetail />} />
-        </Routes>
-      </div>
-    </BrowserRouter>
-  );
-}
+---
 
-export default App;
-```
+### 4. GitHub Issue 連携
 
-### Option 2: Use Swagger UI (Immediate Testing)
+GitHub Webhook でイシューを受け取り、タスクを自動生成・実行する。
 
-Skip the frontend for now and use the built-in API documentation:
+**バックエンド:**
+- `/api/v1/webhooks/github` エンドポイントを追加
+- Issue の本文をタスクの指示として使用
+- 自動的にフローを開始
 
-1. Go to http://localhost:8000/docs
-2. Click "Authorize" and enter `dev-token-12345`
-3. Try all the endpoints directly from the browser
+---
 
-This lets you test the entire MVP without writing any frontend code!
+### 5. マルチユーザー対応
 
-### Option 3: Complete Frontend (Full Implementation)
+シングルユーザーでの全機能実装完了後に着手する。
 
-For a polished UI:
-- Install dependencies: `react-router-dom`, `axios`, `zustand`
-- Implement all pages from the plan
-- Add WebSocket connection for real-time logs
-- Style with CSS or Tailwind
+- GitHub OAuth 認証（`python-social-auth` または `authlib`）
+- ユーザーごとのリポジトリ・タスク管理
+- ストリーミングのブロッキング解消（現在は1タスクずつ実行）
+- ユーザーごとのリソース制限
 
-## Add Test Execution (Step 10)
+---
 
-After the frontend works, add test execution:
-
-### Backend: `backend/app/services/test_service.py`
-```python
-async def execute_tests(db: AsyncSession, task_id: int, test_command: str):
-    docker_service = get_docker_service()
-    task = await get_task(db, task_id)
-
-    # Run tests in container
-    exit_code, output, error = docker_service.execute_command(
-        task.container_id,
-        test_command,
-        workdir="/workspace/repo"
-    )
-
-    # Save test run
-    test_run = TestRun(
-        task_id=task_id,
-        test_command=test_command,
-        exit_code=exit_code,
-        passed=(exit_code == 0),
-        output=output,
-        error_output=error,
-    )
-    db.add(test_run)
-    await db.commit()
-
-    return test_run
-```
-
-### Frontend: Add test button to `TaskDetail.tsx`
-```typescript
-const runTests = async () => {
-  const response = await api.post(`/api/v1/tasks/${taskId}/test-runs`, {
-    test_command: 'npm test'
-  });
-  // Display results
-};
-```
-
-## Recommended Workflow
-
-1. **Now**: Test backend with curl (see commands above)
-2. **Today**: Use Swagger UI (http://localhost:8000/docs) for immediate testing
-3. **Tomorrow**: Implement minimal frontend (Dashboard + TaskDetail)
-4. **Next**: Add test execution feature
-5. **Polish**: Improve UI, add error handling, real Claude Code CLI
-
-## Running the System
-
-### Backend (Already Running)
-```bash
-cd /home/administrator/Projects/xolvien/backend
-source venv/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Database (Already Running)
-```bash
-docker compose up -d db
-```
-
-### Frontend (To Start)
-```bash
-cd /home/administrator/Projects/xolvien/frontend
-npm install
-npm run dev
-```
-
-Then visit:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-
-## Success Criteria
-
-You'll know the MVP is complete when you can:
-
-1. ✅ See task list on dashboard
-2. ✅ Click "Create Task" and fill form
-3. ✅ Task appears in list with "IDLE" status
-4. ✅ Click task to open detail page
-5. ✅ Type instruction and click "Execute"
-6. ✅ See real-time logs streaming
-7. ✅ Click "Run Tests" and see results
-
-## Get Help
-
-- Backend API docs: http://localhost:8000/docs
-- Check backend logs: `tail -f /tmp/claude-1000/...`
-- Check database: `docker compose exec db psql -U xolvien`
-- View containers: `docker ps`
-
-## Architecture Reminder
+## 参考: 主要ファイル
 
 ```
-┌─────────────┐     HTTP/WS      ┌─────────────┐     docker-py    ┌──────────────┐
-│   React     │ ←─────────────→  │   FastAPI   │ ────────────────→│    Docker    │
-│  Frontend   │                   │   Backend   │                  │  Containers  │
-└─────────────┘                   └─────────────┘                  └──────────────┘
-                                         │                                 │
-                                         ↓                                 │
-                                  ┌─────────────┐                          │
-                                  │ PostgreSQL  │                          │
-                                  │  Database   │                          │
-                                  └─────────────┘                          │
-                                                                           │
-                                    ┌──────────────────────────────────────┘
-                                    ↓
-                              Each Task Gets:
-                              - Isolated container
-                              - Git repository
-                              - Persistent volume
-                              - Claude Code env
+backend/app/
+├── services/
+│   ├── claude_service.py   ← テスト実行ロジックの中心
+│   └── test_service.py     ← テスト結果パース
+├── api/
+│   ├── instructions.py     ← テスト関連エンドポイント
+│   └── tasks.py
+└── models/
+    └── test_run.py         ← TestType enum (UNIT / INTEGRATION / E2E)
+
+frontend/src/
+├── pages/TaskDetail.tsx    ← UIフロー全体
+└── services/api.ts         ← API呼び出し
 ```
 
-You've built a sophisticated AI development platform! The hard parts (Docker orchestration, async execution, WebSocket streaming) are done. Now just add the UI to see it all come together.
+## 関連ドキュメント
 
-**Current Status: 80% Complete - Backend Fully Working!**
+- `docs/requirements-revision.md` — 実行フロー設計・テスト設計の詳細
+- `MVP_IMPLEMENTATION_STATUS.md` — 実装済み機能の一覧
