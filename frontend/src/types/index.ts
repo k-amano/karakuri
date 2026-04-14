@@ -46,3 +46,36 @@ export interface TaskLog {
   message: string
   created_at: string
 }
+
+export type TestType = 'unit' | 'integration' | 'e2e'
+
+export interface TestRun {
+  id: number
+  task_id: number
+  test_type: TestType
+  test_command: string | null
+  test_cases: string | null
+  exit_code: number | null
+  passed: boolean
+  retry_count: number
+  output: string | null
+  error_output: string | null
+  summary: string | null
+  report_path: string | null
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+}
+
+export interface Instruction {
+  id: number
+  task_id: number
+  content: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  output: string | null
+  error_message: string | null
+  exit_code: number | null
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+}

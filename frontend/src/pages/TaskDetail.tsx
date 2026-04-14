@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import type { Task, TaskLog, TaskStatus, LogLevel } from '../types'
-import { getTask, getLogs, stopTask, executeInstructionStream, generatePromptStream, clarifyStream, gitPushStream, generateTestCasesStream, runUnitTestsStream } from '../services/api'
+import { getTask, getLogs, stopTask, executeInstructionStream, generatePromptStream, clarifyStream, gitPushStream, generateTestCasesStream, runUnitTestsStream, getTestRuns, getLastCompletedInstruction } from '../services/api'
 
 type PromptState = 'idle' | 'clarifying' | 'generating' | 'confirming' | 'test_cases' | 'running_tests' | 'reviewing'
 
@@ -112,6 +112,9 @@ export default function TaskDetail() {
   const [runningTests, setRunningTests] = useState(false)
   // The implementation prompt that was confirmed for execution (saved to pass into test flow)
   const [confirmedPrompt, setConfirmedPrompt] = useState('')
+  // Resume detection state
+  const [resumeChecked, setResumeChecked] = useState(false)
+  const [isResumed, setIsResumed] = useState(false)
 
   const logViewerRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -156,6 +159,52 @@ export default function TaskDetail() {
       setEditableTestCases(generatedTestCases)
     }
   }, [generatingTestCases, generatedTestCases, editableTestCases])
+
+  // On first load: detect resume state from DB history
+  useEffect(() => {
+    if (resumeChecked) return
+    setResumeChecked(true)
+
+    async function checkResume() {
+      try {
+        const [runs, lastInstruction] = await Promise.all([
+          getTestRuns(taskId),
+          getLastCompletedInstruction(taskId),
+        ])
+
+        if (runs.length === 0) return  // No test history — start fresh
+
+        // Find the most recent completed unit test run
+        const lastUnit = runs.find(r => r.test_type === 'unit' && r.completed_at)
+        if (!lastUnit) return
+
+        // Restore confirmedPrompt from last completed instruction
+        const prompt = lastInstruction?.content ?? ''
+        setConfirmedPrompt(prompt)
+
+        // Restore test cases
+        const testCases = lastUnit.test_cases ?? ''
+
+        setIsResumed(true)
+
+        if (lastUnit.passed) {
+          // Unit test passed — offer to resume from reviewing step
+          setEditableTestCases(testCases)
+          setPromptState('reviewing')
+        } else {
+          // Unit test failed — offer to resume from test_cases step so user can retry
+          setGeneratedTestCases(testCases)
+          setEditableTestCases(testCases)
+          setPromptState('test_cases')
+        }
+      } catch {
+        // Ignore errors — start fresh
+      }
+    }
+
+    checkResume()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId])
 
   // Auto-scroll log viewer
   const scrollToBottom = useCallback(() => {
@@ -602,20 +651,20 @@ export default function TaskDetail() {
   }
 
   function handleApproveImplementation() {
-    // User approved — go back to idle
     setPromptState('idle')
     setConfirmedPrompt('')
     setGeneratedTestCases('')
     setEditableTestCases('')
+    setIsResumed(false)
   }
 
   function handleRejectImplementation() {
-    // User wants to revise — go back to idle with instruction pre-filled
     setPromptState('idle')
     setInstruction(confirmedPrompt)
     setConfirmedPrompt('')
     setGeneratedTestCases('')
     setEditableTestCases('')
+    setIsResumed(false)
   }
 
   async function handleGitPush() {
@@ -1027,6 +1076,27 @@ export default function TaskDetail() {
                   </span>
                 </p>
 
+                {isResumed && (
+                  <div style={{
+                    background: '#1e3a5f',
+                    border: '1px solid #2563eb',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    fontSize: '0.8rem',
+                    color: '#93c5fd',
+                    marginBottom: '8px',
+                    flexShrink: 0,
+                  }}>
+                    前回のセッションから再開しています。テストケースを確認して承認してください。
+                    <button
+                      style={{ marginLeft: '12px', fontSize: '0.75rem', padding: '2px 8px', background: 'transparent', border: '1px solid #3b82f6', borderRadius: '4px', color: '#93c5fd', cursor: 'pointer' }}
+                      onClick={() => { setIsResumed(false); setPromptState('idle'); setGeneratedTestCases(''); setEditableTestCases(''); setConfirmedPrompt('') }}
+                    >
+                      最初からやり直す
+                    </button>
+                  </div>
+                )}
+
                 {generatingTestCases ? (
                   <div style={{
                     background: '#0f172a',
@@ -1112,6 +1182,27 @@ export default function TaskDetail() {
                     — テスト完了。実装を確認してください
                   </span>
                 </p>
+
+                {isResumed && (
+                  <div style={{
+                    background: '#1e3a5f',
+                    border: '1px solid #2563eb',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    fontSize: '0.8rem',
+                    color: '#93c5fd',
+                    marginBottom: '8px',
+                    flexShrink: 0,
+                  }}>
+                    前回のセッションから再開しています（単体テスト完了済み）。承認するか差し戻してください。
+                    <button
+                      style={{ marginLeft: '12px', fontSize: '0.75rem', padding: '2px 8px', background: 'transparent', border: '1px solid #3b82f6', borderRadius: '4px', color: '#93c5fd', cursor: 'pointer' }}
+                      onClick={() => { setIsResumed(false); setPromptState('idle'); setGeneratedTestCases(''); setEditableTestCases(''); setConfirmedPrompt('') }}
+                    >
+                      最初からやり直す
+                    </button>
+                  </div>
+                )}
 
                 <div style={{
                   background: '#0f172a',

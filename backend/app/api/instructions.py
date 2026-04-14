@@ -7,7 +7,7 @@ from typing import List
 
 from app.database import get_db
 from app.models.task import Task
-from app.models.instruction import Instruction
+from app.models.instruction import Instruction, InstructionStatus
 from app.schemas.instruction import InstructionCreate, InstructionResponse, GeneratePromptRequest, ClarifyRequest, GenerateTestCasesRequest, RunUnitTestsRequest
 from app.api.auth import verify_token
 from app.services.claude_service import get_claude_service
@@ -235,6 +235,36 @@ async def run_unit_tests_stream(
         media_type="text/plain",
         headers={"Cache-Control": "no-cache"},
     )
+
+
+@router.get("/last-completed", response_model=InstructionResponse)
+async def get_last_completed_instruction(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    _token: str = Depends(verify_token),
+):
+    """
+    Get the most recently completed instruction for a task.
+    Used to restore confirmedPrompt when resuming a session.
+    """
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    result = await db.execute(
+        select(Instruction)
+        .where(
+            Instruction.task_id == task_id,
+            Instruction.status == InstructionStatus.COMPLETED,
+        )
+        .order_by(Instruction.created_at.desc())
+        .limit(1)
+    )
+    instruction = result.scalar_one_or_none()
+    if not instruction:
+        raise HTTPException(status_code=404, detail="No completed instruction found")
+    return instruction
 
 
 @router.get("", response_model=List[InstructionResponse])

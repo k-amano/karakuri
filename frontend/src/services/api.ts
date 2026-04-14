@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Repository, Task, TaskLog } from '../types'
+import type { Repository, Task, TaskLog, TestRun, Instruction } from '../types'
 
 const AUTH_TOKEN = 'dev-token-12345'
 
@@ -88,6 +88,22 @@ export async function gitPushStream(
     onDone()
   } catch (err) {
     onError(err instanceof Error ? err.message : String(err))
+  }
+}
+
+export async function getTestRuns(taskId: number): Promise<TestRun[]> {
+  const res = await apiClient.get<TestRun[]>(`/api/v1/tasks/${taskId}/test-runs`)
+  return res.data
+}
+
+export async function getLastCompletedInstruction(taskId: number): Promise<Instruction | null> {
+  try {
+    const res = await apiClient.get<Instruction>(
+      `/api/v1/tasks/${taskId}/instructions/last-completed`
+    )
+    return res.data
+  } catch {
+    return null
   }
 }
 
