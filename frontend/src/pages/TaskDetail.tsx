@@ -7,6 +7,18 @@ type PromptState = 'idle' | 'clarifying' | 'generating' | 'confirming' | 'test_c
 
 type ChatMessage = { role: 'assistant' | 'user'; content: string }
 
+type StepId = 'implement' | 'test_cases' | 'unit_test' | 'integration_test' | 'e2e_test' | 'review'
+type StepStatus = 'done_pass' | 'done_fail' | 'active' | 'pending'
+
+interface StepInfo {
+  id: StepId
+  label: string
+  status: StepStatus
+  resultLabel?: string  // e.g. "19件合格" or "3件失敗"
+  future?: boolean      // grayed out, not yet implemented
+}
+
+
 function getStatusLabel(status: TaskStatus): string {
   return status
 }
@@ -112,9 +124,16 @@ export default function TaskDetail() {
   const [runningTests, setRunningTests] = useState(false)
   // The implementation prompt that was confirmed for execution (saved to pass into test flow)
   const [confirmedPrompt, setConfirmedPrompt] = useState('')
-  // Resume detection state
+  // Resume / step navigation state
   const [resumeChecked, setResumeChecked] = useState(false)
-  const [isResumed, setIsResumed] = useState(false)
+  const [steps, setSteps] = useState<StepInfo[]>([
+    { id: 'implement',         label: '実装',         status: 'pending' },
+    { id: 'test_cases',        label: 'テストケース', status: 'pending' },
+    { id: 'unit_test',         label: '単体テスト',   status: 'pending' },
+    { id: 'integration_test',  label: '結合テスト',   status: 'pending', future: true },
+    { id: 'e2e_test',          label: 'E2Eテスト',   status: 'pending', future: true },
+    { id: 'review',            label: '実装確認',     status: 'pending' },
+  ])
 
   const logViewerRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -160,7 +179,7 @@ export default function TaskDetail() {
     }
   }, [generatingTestCases, generatedTestCases, editableTestCases])
 
-  // On first load: detect resume state from DB history
+  // On first load: collect step history from DB and restore state
   useEffect(() => {
     if (resumeChecked) return
     setResumeChecked(true)
@@ -172,29 +191,54 @@ export default function TaskDetail() {
           getLastCompletedInstruction(taskId),
         ])
 
-        if (runs.length === 0) return  // No test history — start fresh
-
-        // Find the most recent completed unit test run
+        const hasImpl = !!lastInstruction
         const lastUnit = runs.find(r => r.test_type === 'unit' && r.completed_at)
-        if (!lastUnit) return
 
-        // Restore confirmedPrompt from last completed instruction
+        // Nothing done yet
+        if (!hasImpl && !lastUnit) return
+
         const prompt = lastInstruction?.content ?? ''
-        setConfirmedPrompt(prompt)
+        const testCases = lastUnit?.test_cases ?? ''
 
-        // Restore test cases
-        const testCases = lastUnit.test_cases ?? ''
-
-        setIsResumed(true)
-
-        if (lastUnit.passed) {
-          // Unit test passed — offer to resume from reviewing step
-          setEditableTestCases(testCases)
-          setPromptState('reviewing')
-        } else {
-          // Unit test failed — offer to resume from test_cases step so user can retry
+        if (prompt) setConfirmedPrompt(prompt)
+        if (testCases) {
           setGeneratedTestCases(testCases)
           setEditableTestCases(testCases)
+        }
+
+        // Build step statuses
+        setSteps(prev => prev.map(step => {
+          switch (step.id) {
+            case 'implement':
+              return hasImpl
+                ? { ...step, status: 'done_pass' }
+                : step
+            case 'test_cases':
+              return lastUnit
+                ? { ...step, status: 'done_pass' }
+                : hasImpl
+                ? { ...step, status: 'active' }
+                : step
+            case 'unit_test':
+              if (!lastUnit) return hasImpl ? { ...step, status: 'pending' } : step
+              return lastUnit.passed
+                ? { ...step, status: 'done_pass', resultLabel: lastUnit.summary ?? undefined }
+                : { ...step, status: 'done_fail', resultLabel: lastUnit.summary ?? undefined }
+            case 'review':
+              return lastUnit?.passed
+                ? { ...step, status: 'active' }
+                : step
+            default:
+              return step
+          }
+        }))
+
+        // Auto-navigate to the most appropriate step
+        if (lastUnit?.passed) {
+          setPromptState('reviewing')
+        } else if (lastUnit) {
+          setPromptState('test_cases')
+        } else if (hasImpl) {
           setPromptState('test_cases')
         }
       } catch {
@@ -560,6 +604,9 @@ export default function TaskDetail() {
     // Run implementation
     await runInstruction(prompt)
 
+    // Mark implement step as done
+    setSteps(prev => prev.map(s => s.id === 'implement' ? { ...s, status: 'done_pass' } : s))
+
     // After implementation completes, generate test cases
     setPromptState('test_cases')
     setGeneratedTestCases('')
@@ -625,9 +672,26 @@ export default function TaskDetail() {
           )
         )
       },
-      () => {
+      async () => {
         setRunningTests(false)
         setPromptState('reviewing')
+        // Refresh step statuses from DB
+        try {
+          const runs = await getTestRuns(taskId)
+          const lastUnit = runs.find(r => r.test_type === 'unit' && r.completed_at)
+          if (lastUnit) {
+            setSteps(prev => prev.map(s => {
+              if (s.id === 'test_cases') return { ...s, status: 'done_pass' }
+              if (s.id === 'unit_test')  return {
+                ...s,
+                status: lastUnit.passed ? 'done_pass' : 'done_fail',
+                resultLabel: lastUnit.summary ?? undefined,
+              }
+              if (s.id === 'review')     return { ...s, status: 'active' }
+              return s
+            }))
+          }
+        } catch { /* ignore */ }
       },
       (err) => {
         setRunningTests(false)
@@ -650,12 +714,35 @@ export default function TaskDetail() {
     )
   }
 
+  function handleStepClick(stepId: StepId) {
+    if (streaming || runningTests || generatingTestCases || generating || clarifying) return
+
+    switch (stepId) {
+      case 'implement':
+        // Restore instruction from confirmedPrompt and go to idle
+        if (confirmedPrompt) setInstruction(confirmedPrompt)
+        setPromptState('idle')
+        setGeneratedPrompt('')
+        setFeedback('')
+        break
+      case 'test_cases':
+      case 'unit_test':
+        // Show test case panel with previously saved test cases
+        setPromptState('test_cases')
+        break
+      case 'review':
+        setPromptState('reviewing')
+        break
+      default:
+        break
+    }
+  }
+
   function handleApproveImplementation() {
     setPromptState('idle')
     setConfirmedPrompt('')
     setGeneratedTestCases('')
     setEditableTestCases('')
-    setIsResumed(false)
   }
 
   function handleRejectImplementation() {
@@ -664,7 +751,6 @@ export default function TaskDetail() {
     setConfirmedPrompt('')
     setGeneratedTestCases('')
     setEditableTestCases('')
-    setIsResumed(false)
   }
 
   async function handleGitPush() {
@@ -889,6 +975,72 @@ export default function TaskDetail() {
 
           {/* Right: Instruction Input Panel */}
           <div className="instruction-panel" style={{ flex: 1, minWidth: 0 }}>
+
+            {/* Step progress bar */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0,
+              marginBottom: '12px',
+              flexShrink: 0,
+              flexWrap: 'wrap',
+              rowGap: '4px',
+            }}>
+              {steps.map((step, idx) => {
+                const isClickable = !step.future
+                  && !streaming && !runningTests && !generatingTestCases && !generating && !clarifying
+                  && (step.status !== 'pending' || step.id === 'implement')
+
+                const bgColor = step.future
+                  ? 'transparent'
+                  : step.status === 'done_pass' ? '#16a34a'
+                  : step.status === 'done_fail' ? '#dc2626'
+                  : step.status === 'active'    ? '#2563eb'
+                  : '#334155'
+
+                const textColor = step.future ? '#475569' : '#fff'
+
+                const icon = step.future ? '○'
+                  : step.status === 'done_pass' ? '✅'
+                  : step.status === 'done_fail' ? '❌'
+                  : step.status === 'active'    ? '▶'
+                  : '○'
+
+                return (
+                  <div key={step.id} style={{ display: 'flex', alignItems: 'center' }}>
+                    {idx > 0 && (
+                      <span style={{ color: '#475569', fontSize: '0.75rem', padding: '0 4px' }}>→</span>
+                    )}
+                    <button
+                      onClick={() => isClickable && handleStepClick(step.id)}
+                      title={step.resultLabel}
+                      style={{
+                        background: bgColor,
+                        color: textColor,
+                        border: step.future ? '1px dashed #475569' : 'none',
+                        borderRadius: '4px',
+                        padding: '3px 8px',
+                        fontSize: '0.75rem',
+                        fontWeight: step.status === 'active' ? 700 : 400,
+                        cursor: isClickable ? 'pointer' : 'default',
+                        opacity: step.future ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span>{icon}</span>
+                      <span>{step.label}</span>
+                      {step.resultLabel && (
+                        <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>({step.resultLabel})</span>
+                      )}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+
             {promptState === 'idle' && (
               <>
                 <p className="instruction-panel-title">Claudeへの指示</p>
@@ -1076,27 +1228,6 @@ export default function TaskDetail() {
                   </span>
                 </p>
 
-                {isResumed && (
-                  <div style={{
-                    background: '#1e3a5f',
-                    border: '1px solid #2563eb',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    fontSize: '0.8rem',
-                    color: '#93c5fd',
-                    marginBottom: '8px',
-                    flexShrink: 0,
-                  }}>
-                    前回のセッションから再開しています。テストケースを確認して承認してください。
-                    <button
-                      style={{ marginLeft: '12px', fontSize: '0.75rem', padding: '2px 8px', background: 'transparent', border: '1px solid #3b82f6', borderRadius: '4px', color: '#93c5fd', cursor: 'pointer' }}
-                      onClick={() => { setIsResumed(false); setPromptState('idle'); setGeneratedTestCases(''); setEditableTestCases(''); setConfirmedPrompt('') }}
-                    >
-                      最初からやり直す
-                    </button>
-                  </div>
-                )}
-
                 {generatingTestCases ? (
                   <div style={{
                     background: '#0f172a',
@@ -1182,27 +1313,6 @@ export default function TaskDetail() {
                     — テスト完了。実装を確認してください
                   </span>
                 </p>
-
-                {isResumed && (
-                  <div style={{
-                    background: '#1e3a5f',
-                    border: '1px solid #2563eb',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    fontSize: '0.8rem',
-                    color: '#93c5fd',
-                    marginBottom: '8px',
-                    flexShrink: 0,
-                  }}>
-                    前回のセッションから再開しています（単体テスト完了済み）。承認するか差し戻してください。
-                    <button
-                      style={{ marginLeft: '12px', fontSize: '0.75rem', padding: '2px 8px', background: 'transparent', border: '1px solid #3b82f6', borderRadius: '4px', color: '#93c5fd', cursor: 'pointer' }}
-                      onClick={() => { setIsResumed(false); setPromptState('idle'); setGeneratedTestCases(''); setEditableTestCases(''); setConfirmedPrompt('') }}
-                    >
-                      最初からやり直す
-                    </button>
-                  </div>
-                )}
 
                 <div style={{
                   background: '#0f172a',
