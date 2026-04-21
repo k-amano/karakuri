@@ -1,6 +1,6 @@
 # Xolvien — 現行仕様
 
-**最終更新**: 2026-04-19
+**最終更新**: 2026-04-21
 
 本書は現時点で実装済みの仕様を記録する。未実装の将来機能は `roadmap.md` に記載する。
 
@@ -225,11 +225,21 @@ reviewing（実装確認）
 
 | 表示色 | 意味 |
 |---|---|
-| 緑（合格件数付き） | 完了（テスト成功） |
+| 緑 | 完了（テスト成功） |
 | 赤 | 完了（テスト失敗） |
 | 青（太字） | 現在のステップ |
+| 黄色背景・黒テキスト | 選択中（クリックで移動したステップ） |
 | グレー | 未実施 |
 | グレー斜体（\*付き） | 未実装の将来ステップ |
+
+### 5.4 テストケース確認パネルの操作
+
+- テキストエリアで直接編集して承認できる
+- 「修正を依頼」クリックでインライン入力欄が展開される。修正内容を入力して「送信」するとテストケースを再生成
+
+### 5.5 実装確認パネルの表示
+
+- テスト結果サマリー（例：「19 passed, 0 failed」）をバナーで表示。成功時は緑、失敗時は赤
 
 ---
 
@@ -260,21 +270,21 @@ backend/app/
 | `execute_instruction()` | 任意の指示を Claude Agent で実行。AsyncGenerator でログを yield |
 | `clarify_requirements()` | 要件確認 Q&A。不明点を質問、十分な情報が揃ったら終了 |
 | `generate_prompt()` | 簡潔な指示を最適化されたプロンプトに変換 |
-| `generate_test_cases()` | 実装プロンプトからテストケース一覧（Markdown）を生成 |
+| `generate_test_cases()` | 実装プロンプトからテストケース一覧（Markdown）を生成。エージェントモードでリポジトリの関連ファイルを読んで生成 |
 | `run_unit_tests()` | テストコード生成 → 実行 → 自動修正ループ（最大3回） |
-| `_detect_test_command()` | pytest 等が実際にインストール済みか確認。未インストールは None を返す |
+| `_detect_test_command()` | `package.json` を優先チェックし、次に `pyproject.toml` / `setup.py` で Python を判定。pytest の実インストールも確認 |
 
 ### 6.3 Docker ワークスペース
 
 - イメージ: `xolvien-workspace:latest`（`docker/workspace/Dockerfile`）
-- 構成: Python 3.11-slim + Git + Node.js 18 + Claude Code CLI
+- 構成: Python 3.11-slim + Git + Node.js 20 + Claude Code CLI
 - 各タスク専用ボリューム: `xolvien-task-{task_id}-data`（マウント先: `/workspace`）
 - SSH 鍵: ホストの `~/.ssh/` をコンテナにマウント（GitHub 認証用）
 - Claude 認証情報: ホストの `~/.claude/` をコンテナにマウント
 
 ### 6.4 テスト実行の詳細
 
-- Claude Agent がリポジトリの `package.json` / `pyproject.toml` 等からテストコマンドを自動判断
+- `_detect_test_command()` が `package.json`（Node.js）→ `pyproject.toml` / `setup.py`（Python）の順に判定。`requirements.txt` 単独では Python とみなさない
 - 依存パッケージの未インストールも Claude Agent が検出してインストール
 - テストレポート保存先: `/workspace/repo/test-reports/test-report-{日時}-{種別}.md`
 - 自動修正フィードバック: 失敗テスト名・エラーメッセージ・標準出力
@@ -298,6 +308,3 @@ backend/app/
 | 認証 | 固定トークン（`dev-token-12345`）。GitHub OAuth は未実装 |
 | 同時実行 | シングルユーザー想定。複数タスク同時実行時はストリーミングが遅延する可能性あり |
 | テストレポート形式 | Markdown のみ。Excel 形式は将来対応 |
-| コンテナ停止後の再起動 | `docker compose down` 後の再起動時にコンテナが自動再起動する（タスク削除不要） |
-| テスト結果表示 | テスト完了後のサマリー（passed/failed 件数）がパネルに表示されない（改善バックログ H2） |
-| テストケース修正UI | `window.prompt` を使用中。インライン入力欄への変更が必要（改善バックログ H3） |
