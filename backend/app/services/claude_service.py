@@ -720,20 +720,27 @@ README:
         test_run.summary = summary
 
         now_str = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        executed_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
         report_filename = f"test-report-{now_str}-unit.md"
         report_path = f"/workspace/repo/test-reports/{report_filename}"
+
+        results_table = test_service.parse_test_results_table(last_output, executed_at)
 
         report_content = f"""# テストレポート（単体テスト）
 
 | 項目 | 値 |
 |---|---|
-| 実行日時 | {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC |
+| 実行日時 | {executed_at} |
 | テストコマンド | `{test_command}` |
 | 結果 | {"✅ PASS" if passed else "❌ FAIL"} |
 | リトライ回数 | {test_run.retry_count} |
 | サマリー | {summary} |
 
-## テストケース一覧
+## テスト結果集計表
+
+{results_table if results_table else "_テストランナーの出力から個別結果を取得できませんでした。_"}
+
+## テストケース一覧（承認済み）
 
 {test_cases}
 

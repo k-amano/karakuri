@@ -167,6 +167,44 @@ class TestService:
         # Generic: just return exit code status
         return "Tests completed"
 
+    def parse_test_results_table(self, output: str, executed_at: str) -> str:
+        """
+        Parse test runner output and return a Markdown table of individual results.
+        Supports pytest and Jest output formats.
+        """
+        rows: list[tuple[str, str]] = []  # (test_name, result)
+
+        for line in output.splitlines():
+            # pytest verbose: "tests/test_foo.py::test_bar PASSED" / "FAILED"
+            m = re.match(r'^\s*([\w/.::\[\]-]+)\s+(PASSED|FAILED|ERROR|SKIPPED)\s*$', line)
+            if m:
+                rows.append((m.group(1), m.group(2)))
+                continue
+            # pytest short: "FAILED tests/test_foo.py::test_bar - AssertionError"
+            m = re.match(r'^(FAILED|PASSED|ERROR)\s+([\w/.::\[\]-]+)', line)
+            if m:
+                rows.append((m.group(2), m.group(1)))
+                continue
+            # Jest: "  ✓ test name (12 ms)" / "  ✕ test name"
+            m = re.match(r'^\s+([✓✔])\s+(.+?)(?:\s+\(\d+\s*m?s\))?\s*$', line)
+            if m:
+                rows.append((m.group(2).strip(), 'PASSED'))
+                continue
+            m = re.match(r'^\s+([✕✗×])\s+(.+?)\s*$', line)
+            if m:
+                rows.append((m.group(2).strip(), 'FAILED'))
+                continue
+
+        if not rows:
+            return ''
+
+        result_icon = {'PASSED': '✅', 'FAILED': '❌', 'ERROR': '⚠️', 'SKIPPED': '⏭️'}
+        lines = ['| テスト名 | 結果 | 実行日時 |', '|---|---|---|']
+        for name, status in rows:
+            icon = result_icon.get(status, status)
+            lines.append(f'| `{name}` | {icon} {status} | {executed_at} |')
+        return '\n'.join(lines)
+
     async def _log_event(
         self,
         db: AsyncSession,

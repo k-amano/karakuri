@@ -96,6 +96,49 @@ type LogEntry =
   | { kind: 'log'; data: TaskLog }
   | { kind: 'stream'; text: string; key: string }
 
+interface TestResultRow {
+  name: string
+  status: 'PASSED' | 'FAILED' | 'ERROR' | 'SKIPPED'
+  executedAt: string
+}
+
+function parseTestResultsTable(output: string, executedAt: string): TestResultRow[] {
+  const rows: TestResultRow[] = []
+  for (const line of output.split('\n')) {
+    // pytest verbose: "tests/test_foo.py::test_bar PASSED"
+    let m = line.match(/^\s*([\w/.::\[\]-]+)\s+(PASSED|FAILED|ERROR|SKIPPED)\s*$/)
+    if (m) {
+      rows.push({ name: m[1], status: m[2] as TestResultRow['status'], executedAt })
+      continue
+    }
+    // pytest short: "FAILED tests/test_foo.py::test_bar"
+    m = line.match(/^(FAILED|PASSED|ERROR)\s+([\w/.::\[\]-]+)/)
+    if (m) {
+      rows.push({ name: m[2], status: m[1] as TestResultRow['status'], executedAt })
+      continue
+    }
+    // Jest: "  ✓ test name (12 ms)"
+    m = line.match(/^\s+[✓✔]\s+(.+?)(?:\s+\(\d+\s*m?s\))?\s*$/)
+    if (m) {
+      rows.push({ name: m[1].trim(), status: 'PASSED', executedAt })
+      continue
+    }
+    // Jest: "  ✕ test name"
+    m = line.match(/^\s+[✕✗×]\s+(.+?)\s*$/)
+    if (m) {
+      rows.push({ name: m[1].trim(), status: 'FAILED', executedAt })
+    }
+  }
+  return rows
+}
+
+const STATUS_ICON: Record<string, string> = {
+  PASSED: '✅',
+  FAILED: '❌',
+  ERROR: '⚠️',
+  SKIPPED: '⏭️',
+}
+
 export default function TaskDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -127,6 +170,7 @@ export default function TaskDetail() {
   const testCountRef = useRef({ passed: 0, failed: 0 })
   const [testResultSummary, setTestResultSummary] = useState<string | null>(null)
   const [testPassed, setTestPassed] = useState<boolean | null>(null)
+  const [testRunOutput, setTestRunOutput] = useState<string | null>(null)
   const [showRevisionInput, setShowRevisionInput] = useState(false)
   const [revisionText, setRevisionText] = useState('')
   // The implementation prompt that was confirmed for execution (saved to pass into test flow)
@@ -237,6 +281,7 @@ export default function TaskDetail() {
         // Auto-navigate to the most appropriate step
         if (lastUnit?.summary) setTestResultSummary(lastUnit.summary)
         if (lastUnit != null) setTestPassed(lastUnit.passed)
+        if (lastUnit?.output) setTestRunOutput(lastUnit.output)
         if (lastUnit?.passed) {
           setPromptState('reviewing')
           setSelectedStep('review')
@@ -729,6 +774,7 @@ export default function TaskDetail() {
           if (lastUnit) {
             setTestResultSummary(lastUnit.summary ?? null)
             setTestPassed(lastUnit.passed)
+            setTestRunOutput(lastUnit.output ?? null)
             setSteps(prev => prev.map(s => {
               if (s.id === 'unit_test')  return {
                 ...s,
@@ -1423,6 +1469,42 @@ export default function TaskDetail() {
                     {testPassed === false ? '❌' : '✅'} {testResultSummary}
                   </div>
                 )}
+
+                {testRunOutput && (() => {
+                  const executedAt = new Date().toLocaleString('ja-JP', { hour12: false })
+                  const rows = parseTestResultsTable(testRunOutput, executedAt)
+                  if (rows.length === 0) return null
+                  return (
+                    <div style={{
+                      background: '#0f172a',
+                      border: '1px solid #334155',
+                      borderRadius: '6px',
+                      padding: '10px 12px',
+                      marginBottom: '8px',
+                      overflowX: 'auto',
+                    }}>
+                      <p style={{ margin: '0 0 6px', color: '#6366f1', fontSize: '0.75rem' }}>テスト結果集計表</p>
+                      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.78rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid #334155' }}>
+                            <th style={{ textAlign: 'left', padding: '4px 8px', color: '#94a3b8', fontWeight: 500 }}>テスト名</th>
+                            <th style={{ textAlign: 'center', padding: '4px 8px', color: '#94a3b8', fontWeight: 500, whiteSpace: 'nowrap' }}>結果</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid #1e293b' }}>
+                              <td style={{ padding: '3px 8px', color: '#cbd5e1', fontFamily: 'monospace', wordBreak: 'break-all' }}>{row.name}</td>
+                              <td style={{ padding: '3px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                {STATUS_ICON[row.status] ?? row.status} {row.status}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                })()}
 
                 <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 8px' }}>
                   テスト結果と変更内容をログで確認してください。問題なければ「承認」、修正が必要なら「差し戻し」を選択してください。
