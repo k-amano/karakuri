@@ -161,7 +161,7 @@ class DockerService:
                 ["bash", "-c", command],
                 workdir=workdir,
             )
-            return exit_code, output.decode(), ""
+            return exit_code, output.decode("utf-8", errors="replace"), ""
         except NotFound:
             raise RuntimeError(f"Container {container_id} not found")
         except Exception as e:
@@ -193,17 +193,17 @@ class DockerService:
                 ["bash", "-c", command],
                 workdir=workdir,
                 stream=True,
-                demux=False,
+                demux=True,
             )
 
             decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-            for chunk in exec_instance.output:
+            for stdout_chunk, _stderr_chunk in exec_instance.output:
+                chunk = stdout_chunk or b""
                 if chunk:
                     text = decoder.decode(chunk)
                     if text:
                         yield text
-                    await asyncio.sleep(0.01)
-            # Flush any remaining bytes at end of stream
+                await asyncio.sleep(0.01)
             remaining = decoder.decode(b"", final=True)
             if remaining:
                 yield remaining
