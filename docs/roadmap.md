@@ -69,11 +69,15 @@
   - 自動修正フェーズ：「自動修正中 1/3」
   - フェーズラベルは `testPhaseLabel` state で管理。テスト開始時にカウンターをリセット
 
-### M3: テストケースの表形式出力
+### ~~M3: テストケースの構造化・DB管理~~ ✅ 対応済み（2026-04-23）
 
-- **現象**: 現在はMarkdownのチェックリスト形式で出力される
-- **対応**: `generate_test_cases()` のプロンプトを修正し、以下の列を持つMarkdown表形式で出力させる
-  - 対象画面 / テスト項目 / 操作方法 / 期待動作
+- **ユーザー指摘**: 「テストケースにIDを振って管理する必要がある」「具体的入力値・期待出力値がないと追試できない」「テストケースと別のテストを行うのでは何のためのテストケースか分からない」
+- **設計**: `test_case_items`（仕様・TC-ID付き）と `test_case_results`（実行ごとの結果）を分離したDBテーブルを新設
+- `generate_test_cases()` が JSON 配列（TC-ID / 対象画面 / テスト項目 / 操作（具体的入力値） / 期待出力値 / function_name）を出力し、`test_case_items` テーブルに保存
+- `run_unit_tests()` が `test_case_items` の `function_name` でテスト関数を生成させ、実行後に `test_case_results`（実際の出力・判定・実行日時）として保存
+- テストケース確認パネル：Markdownテキストエリアからテーブル表示（TC-ID / 対象画面 / テスト項目 / 操作 / 期待出力）に刷新
+- 実装確認パネル：テスト結果集計表を DB の `test_case_results` から表示（TC-ID / テスト項目 / 期待出力 / 実際の出力 / 判定 / 実行日時）
+- 新APIエンドポイント: `GET /tasks/{id}/test-cases`、`GET /tasks/{id}/test-cases/{item_id}/results`
 
 ### ~~M4: テスト結果の集計表~~ ✅ 対応済み（2026-04-22）
 

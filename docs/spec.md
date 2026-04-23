@@ -78,6 +78,30 @@ PENDING → INITIALIZING → IDLE → RUNNING → TESTING → COMPLETED
 | output | TEXT | Claude の出力 |
 | exit_code | INTEGER | |
 
+**test_case_items**（仕様・不変）
+
+| カラム | 型 | 説明 |
+|---|---|---|
+| id | INTEGER PK | |
+| task_id | INTEGER FK | |
+| seq_no | INTEGER | タスク内連番（TC-001の元） |
+| target_screen | VARCHAR | 対象画面 |
+| test_item | VARCHAR | テスト項目 |
+| operation | TEXT | 操作方法（具体的入力値を含む） |
+| expected_output | TEXT | 期待される具体的出力値 |
+| function_name | VARCHAR | テスト関数名（例: test_tc001_login_empty_password） |
+
+**test_case_results**（実行ごとの記録）
+
+| カラム | 型 | 説明 |
+|---|---|---|
+| id | INTEGER PK | |
+| test_case_item_id | INTEGER FK | |
+| test_run_id | INTEGER FK | |
+| actual_output | TEXT | 実際の出力値 |
+| verdict | ENUM | PASSED / FAILED / ERROR / SKIPPED |
+| executed_at | DATETIME | |
+
 **test_runs**
 
 | カラム | 型 | 説明 |
@@ -85,12 +109,10 @@ PENDING → INITIALIZING → IDLE → RUNNING → TESTING → COMPLETED
 | id | INTEGER PK | |
 | task_id | INTEGER FK | |
 | test_type | ENUM | UNIT / INTEGRATION / E2E |
-| status | ENUM | PENDING / RUNNING / PASSED / FAILED |
-| test_cases | TEXT | 承認済みテストケース（Markdown） |
 | retry_count | INTEGER | 自動修正の実施回数 |
 | report_path | VARCHAR | テストレポートのパス |
-| passed_count | INTEGER | |
-| failed_count | INTEGER | |
+| passed | BOOLEAN | |
+| summary | TEXT | サマリー文字列 |
 
 **task_logs**
 
@@ -142,6 +164,10 @@ GET  /api/v1/tasks/{id}/instructions/last-completed
 POST /api/v1/tasks/{id}/test-runs
 GET  /api/v1/tasks/{id}/test-runs
 GET  /api/v1/tasks/{id}/test-runs/{run_id}
+
+# テストケース
+GET  /api/v1/tasks/{id}/test-cases
+GET  /api/v1/tasks/{id}/test-cases/{item_id}/results
 
 # ログ
 GET /api/v1/tasks/{id}/logs
