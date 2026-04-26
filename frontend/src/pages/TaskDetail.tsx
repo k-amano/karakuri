@@ -1368,6 +1368,11 @@ export default function TaskDetail() {
             <button className="btn-primary" onClick={() => handleApproveTestCases(latestTestCases.items)} disabled={isBusy}>
               {runningTests ? 'テスト実行中...' : 'テストを再実行'}
             </button>
+            {confirmedPrompt && task?.status === 'idle' && (
+              <button className="btn-secondary" onClick={handleGenerateTestCasesManual} disabled={isBusy}>
+                {generatingTestCases ? 'テストケース生成中...' : 'テストケースを再生成'}
+              </button>
+            )}
           </div>
         )
       }
