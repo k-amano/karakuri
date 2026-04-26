@@ -409,8 +409,13 @@ Ctrl + C
 以下のように表示されれば停止成功です。
 
 ```
-INFO:     Shutting down
+^CINFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
 INFO:     Finished server process [XXXXX]
+INFO:     Stopping reloader process [XXXXX]
+(venv) administrator@owl:~/Projects/xolvien/backend$
 ```
 
 バックエンドがすでに停止している場合（ターミナルを閉じてしまった場合など）は、この手順をとばして次へ進みます。
