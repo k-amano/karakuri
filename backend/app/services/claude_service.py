@@ -663,17 +663,15 @@ README:
 2. 既存のテストファイルがあれば確認し、命名規則・構造に従ってください
 3. テストケース一覧の全ケースについて、指定された function_name で関数を生成してください
 
-   **重要: 各テストケースは必ず以下のパターンで実際の出力値を `/tmp/xolvien_tc_results.jsonl` に書き出すこと**
+   **重要: 各テストケースは必ず以下のパターンで実際の出力値を `console.log` で出力すること**
 
    Jest（Node.js）の場合の例:
    ```javascript
-   const fs = require('fs');
    test('TC-001: テスト名', () => {{
      // テスト実行
      const actual = /* 実際の値 */;
-     // 結果をファイルに記録（合否に関わらず必ず実行）
-     fs.appendFileSync('/tmp/xolvien_tc_results.jsonl',
-       JSON.stringify({{tc_id: 'TC-001', actual: String(actual)}}) + '\\n');
+     // 結果をconsole.logで出力（expect より前に必ず実行）
+     console.log('XOLVIEN_RESULT:' + JSON.stringify({{tc_id: 'TC-001', actual: String(actual)}}));
      expect(actual).toBe(/* 期待値 */);
    }});
    ```
@@ -683,19 +681,17 @@ README:
    import json
    def test_tc001_xxx():
        actual = /* 実際の値 */
-       # 結果をファイルに記録（合否に関わらず必ず実行）
-       with open('/tmp/xolvien_tc_results.jsonl', 'a') as f:
-           f.write(json.dumps({{'tc_id': 'TC-001', 'actual': str(actual)}}) + '\\n')
+       # 結果をprintで出力（assert より前に必ず実行）
+       print('XOLVIEN_RESULT:' + json.dumps({{'tc_id': 'TC-001', 'actual': str(actual)}}))
        assert actual == /* 期待値 */
    ```
 
 4. テストの実行に必要な依存パッケージをインストールしてください
-5. テスト実行前に `/tmp/xolvien_tc_results.jsonl` を削除してください（前回の結果が残らないよう）
-6. テストを実行してください
+5. テストを実行してください
 
 注意:
 - function_name は変更しないこと（DBでの結果照合に使用する）
-- `/tmp/xolvien_tc_results.jsonl` への書き込みは `expect/assert` より前に行うこと（テスト失敗時も記録されるよう）
+- `XOLVIEN_RESULT:` プレフィックス付きの出力は `expect/assert` より前に行うこと（テスト失敗時も記録されるよう）
 - 記録する `actual` は文字列に変換すること
 """
 
@@ -758,7 +754,7 @@ README:
 1. 失敗の原因を特定してください（テストコードの問題か、実装コードの問題か）
 2. 原因を修正してください（function_name は変更しないこと）
 3. 依存パッケージが不足している場合はインストールしてください
-4. テストを再実行してください（`{test_command}` を必ず実行すること）
+4. テストの再実行は不要です。修正のみ行ってください
 """
                 self._write_text_to_container(task.container_id, "/tmp/xolvien_prompt.txt", fix_prompt)
                 self._write_text_to_container(task.container_id, "/tmp/xolvien_runner.py", _RUNNER_SCRIPT_AGENT)
@@ -800,22 +796,17 @@ README:
                 else:
                     yield f"\n[TEST] 最大リトライ回数 ({max_retries}) に達しました。手動対応が必要です。\n"
 
-        # Read actual_output values written by test code to /tmp/xolvien_tc_results.jsonl
-        _, jsonl_content, _ = self.docker_service.execute_command(
-            task.container_id,
-            "cat /tmp/xolvien_tc_results.jsonl 2>/dev/null || echo ''",
-            "/workspace/repo",
-        )
+        # Parse actual_output values from XOLVIEN_RESULT: lines in test output
         actual_by_tc_id: dict[str, str] = {}
-        for line in jsonl_content.splitlines():
-            line = line.strip()
-            if not line:
+        for line in (last_output + "\n" + last_error).splitlines():
+            if "XOLVIEN_RESULT:" not in line:
                 continue
             try:
-                row = json.loads(line)
+                json_part = line[line.index("XOLVIEN_RESULT:") + len("XOLVIEN_RESULT:"):]
+                row = json.loads(json_part)
                 if "tc_id" in row and "actual" in row:
                     actual_by_tc_id[row["tc_id"]] = str(row["actual"])
-            except json.JSONDecodeError:
+            except (ValueError, json.JSONDecodeError):
                 pass
 
         # Save TestCaseResults
