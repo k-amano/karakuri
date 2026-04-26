@@ -774,10 +774,11 @@ README:
                 else:
                     yield f"\n[TEST] 最大リトライ回数 ({max_retries}) に達しました。手動対応が必要です。\n"
 
-        # Save TestCaseResults by matching function_name in test output
+        # Save TestCaseResults — use combined stdout+stderr so pytest output is found regardless of stream
+        last_combined = (last_output + "\n" + last_error).strip()
         executed_at = datetime.utcnow()
         for tc in tc_items:
-            verdict, actual = self._extract_result_for_function(last_output, tc.function_name)
+            verdict, actual = self._extract_result_for_function(last_combined, tc.function_name)
             tcr = TestCaseResult(
                 test_case_item_id=tc.id,
                 test_run_id=test_run.id,
@@ -885,30 +886,49 @@ README:
 
         lines = output.splitlines()
         verdict: Verdict | None = None
-        actual_lines: list[str] = []
-        capture = False
+        result_line: str | None = None
+        failure_lines: list[str] = []
+        in_failure_block = False
 
-        for i, line in enumerate(lines):
-            # pytest verbose: "tests/test_foo.py::test_tc001_xxx PASSED"
+        for line in lines:
+            # pytest verbose: "tests/test_foo.py::test_tc001_xxx PASSED  [ 50%]"
             if function_name in line:
                 if "PASSED" in line:
                     verdict = Verdict.PASSED
-                elif "FAILED" in line or "ERROR" in line:
-                    verdict = Verdict.FAILED if "FAILED" in line else Verdict.ERROR
+                    result_line = line.strip()
+                    in_failure_block = False
+                elif "FAILED" in line:
+                    verdict = Verdict.FAILED
+                    result_line = line.strip()
+                elif "ERROR" in line:
+                    verdict = Verdict.ERROR
+                    result_line = line.strip()
                 elif "SKIPPED" in line:
                     verdict = Verdict.SKIPPED
-                capture = True
-                continue
+                    result_line = line.strip()
+                    in_failure_block = False
 
-            # Collect print output lines that appear immediately after the function match
-            if capture:
+            # Collect FAILED detail block: "FAILED tests/...::test_tc001" section
+            if verdict == Verdict.FAILED and result_line and line.strip().startswith("FAILED " + function_name.split("_")[0]):
+                in_failure_block = True
+
+            # Collect AssertionError and surrounding lines for actual output
+            if in_failure_block and (
+                "AssertionError" in line or
+                "assert " in line or
+                "Error:" in line or
+                line.strip().startswith("E ")
+            ):
                 stripped = line.strip()
-                if stripped.startswith("期待:") or stripped.startswith("実際:") or stripped.startswith("PASSED") or stripped.startswith("FAILED"):
-                    actual_lines.append(stripped)
-                elif stripped == "" or stripped.startswith("PASSED") or stripped.startswith("tests/"):
-                    capture = False
+                if stripped:
+                    failure_lines.append(stripped)
 
-        actual = "\n".join(actual_lines) if actual_lines else None
+        if failure_lines:
+            actual = "\n".join(failure_lines[:10])  # cap at 10 lines
+        elif result_line:
+            actual = result_line
+        else:
+            actual = None
         return verdict, actual
 
 
