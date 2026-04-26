@@ -937,9 +937,6 @@ export default function TaskDetail() {
   function handleStepClick(stepId: StepId) {
     if (streaming || runningTests || generatingTestCases || generating || clarifying) return
     setSelectedStep(stepId)
-    if (stepId === 'implement' && confirmedPrompt) {
-      setInstruction(confirmedPrompt)
-    }
   }
 
   async function handleGitPush() {
@@ -998,28 +995,13 @@ export default function TaskDetail() {
   // ─── Render helpers ───────────────────────────────────────────────────────
 
   function renderChatEntry(entry: ChatEntry, idx: number) {
-    // Determine which entries are the "last active" of each type
-    const lastUnconfirmedPromptIdx = chatEntries.reduce((last, e, i) =>
-      e.type === 'prompt_generated' && !e.confirmed ? i : last, -1)
-    const lastUnapprovedTestCasesIdx = chatEntries.reduce((last, e, i) =>
-      e.type === 'test_cases_ready' && !e.approved ? i : last, -1)
-    const lastUnresolvedReviewIdx = chatEntries.reduce((last, e, i) =>
-      e.type === 'review' && !e.resolved ? i : last, -1)
-
-    const isBusy = streaming || generating || clarifying || generatingTestCases || runningTests
-
     switch (entry.type) {
       case 'user_instruction':
         return (
           <div key={idx} style={{
-            background: '#1e3a5f',
-            border: '1px solid #2563eb',
-            borderRadius: '6px',
-            padding: '8px 12px',
-            fontSize: '0.82rem',
-            color: '#bfdbfe',
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.6,
+            background: '#1e3a5f', border: '1px solid #2563eb', borderRadius: '6px',
+            padding: '8px 12px', fontSize: '0.82rem', color: '#bfdbfe',
+            whiteSpace: 'pre-wrap', lineHeight: 1.6,
           }}>
             <span style={{ fontSize: '0.72rem', color: '#60a5fa', marginBottom: '4px', display: 'block', fontWeight: 600 }}>あなたの指示</span>
             {entry.content}
@@ -1029,14 +1011,9 @@ export default function TaskDetail() {
       case 'clarify_question':
         return (
           <div key={idx} style={{
-            background: '#0f172a',
-            border: '1px solid #334155',
-            borderRadius: '6px',
-            padding: '8px 12px',
-            fontSize: '0.82rem',
-            color: '#e2e8f0',
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.6,
+            background: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
+            padding: '8px 12px', fontSize: '0.82rem', color: '#e2e8f0',
+            whiteSpace: 'pre-wrap', lineHeight: 1.6,
           }}>
             <span style={{ fontSize: '0.72rem', color: '#6366f1', marginBottom: '4px', display: 'block', fontWeight: 600 }}>Claude</span>
             {entry.content}
@@ -1046,15 +1023,9 @@ export default function TaskDetail() {
       case 'clarify_answer':
         return (
           <div key={idx} style={{
-            background: '#1e3a5f',
-            border: '1px solid #2563eb',
-            borderRadius: '6px',
-            padding: '8px 12px',
-            fontSize: '0.82rem',
-            color: '#bfdbfe',
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.6,
-            marginLeft: '20px',
+            background: '#1e3a5f', border: '1px solid #2563eb', borderRadius: '6px',
+            padding: '8px 12px', fontSize: '0.82rem', color: '#bfdbfe',
+            whiteSpace: 'pre-wrap', lineHeight: 1.6, marginLeft: '20px',
           }}>
             <span style={{ fontSize: '0.72rem', color: '#60a5fa', marginBottom: '4px', display: 'block', fontWeight: 600 }}>あなた</span>
             {entry.content}
@@ -1064,14 +1035,9 @@ export default function TaskDetail() {
       case 'clarify_streaming':
         return (
           <div key={idx} style={{
-            background: '#0f172a',
-            border: '1px solid #334155',
-            borderRadius: '6px',
-            padding: '8px 12px',
-            fontSize: '0.82rem',
-            color: '#94a3b8',
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.6,
+            background: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
+            padding: '8px 12px', fontSize: '0.82rem', color: '#94a3b8',
+            whiteSpace: 'pre-wrap', lineHeight: 1.6,
           }}>
             <span style={{ fontSize: '0.72rem', color: '#6366f1', marginBottom: '4px', display: 'block', fontWeight: 600 }}>Claude</span>
             {entry.content || <><span className="spinner" style={{ width: '10px', height: '10px', marginRight: '4px' }} />考え中...</>}
@@ -1081,96 +1047,40 @@ export default function TaskDetail() {
       case 'prompt_generating':
         return (
           <div key={idx} style={{
-            background: '#0f172a',
-            border: '1px solid #334155',
-            borderRadius: '6px',
-            padding: '10px 12px',
-            fontSize: '0.82rem',
-            color: '#94a3b8',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
+            background: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
+            padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
+            display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
             プロンプトを生成しています...
           </div>
         )
 
-      case 'prompt_generated': {
-        const isLastActive = idx === lastUnconfirmedPromptIdx
+      case 'prompt_generated':
         return (
           <div key={idx} style={{
             background: '#0f172a',
             border: `1px solid ${entry.confirmed ? '#334155' : '#6366f1'}`,
-            borderRadius: '6px',
-            padding: '12px',
-            fontSize: '0.82rem',
+            borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: '#6366f1', fontSize: '0.72rem', marginBottom: '6px', fontWeight: 600 }}>
-              生成されたプロンプト {entry.confirmed ? '(確定済み)' : ''}
+              生成されたプロンプト {entry.confirmed ? '(確定済み)' : '— 下のボタンで確定または再生成'}
             </div>
             <div style={{
-              fontFamily: 'monospace',
-              color: '#e2e8f0',
-              whiteSpace: 'pre-wrap',
-              lineHeight: 1.5,
-              maxHeight: entry.confirmed ? '120px' : 'none',
-              overflowY: entry.confirmed ? 'auto' : 'visible',
+              fontFamily: 'monospace', color: '#e2e8f0', whiteSpace: 'pre-wrap', lineHeight: 1.5,
+              maxHeight: '200px', overflowY: 'auto',
             }}>
               {entry.content}
             </div>
-            {isLastActive && !entry.confirmed && (
-              <>
-                <div style={{ marginTop: '10px' }}>
-                  <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: '0 0 4px' }}>
-                    このプロンプトへの指摘・追加要望（任意）
-                  </p>
-                  <textarea
-                    className="instruction-textarea"
-                    value={feedback}
-                    onChange={e => setFeedback(e.target.value)}
-                    placeholder="例: エラーメッセージの表示場所も指定してほしい"
-                    rows={2}
-                    style={{ marginBottom: '8px', minHeight: '50px', fontSize: '0.82rem' }}
-                    disabled={isBusy}
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button
-                    className="btn-primary"
-                    onClick={() => handleConfirmAndExecute(entry.content)}
-                    disabled={isBusy}
-                    style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                  >
-                    確定して実行
-                  </button>
-                  <button
-                    className="btn-secondary"
-                    onClick={handleRegenerate}
-                    disabled={isBusy}
-                    style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                  >
-                    {generating ? '生成中...' : '再生成'}
-                  </button>
-                </div>
-              </>
-            )}
           </div>
         )
-      }
 
       case 'implementation_running':
         return (
           <div key={idx} style={{
-            background: '#0f172a',
-            border: '1px solid #334155',
-            borderRadius: '6px',
-            padding: '10px 12px',
-            fontSize: '0.82rem',
-            color: '#93c5fd',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
+            background: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
+            padding: '10px 12px', fontSize: '0.82rem', color: '#93c5fd',
+            display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
             実装を実行しています...（左ペインのログをご確認ください）
@@ -1180,15 +1090,9 @@ export default function TaskDetail() {
       case 'implementation_done':
         return (
           <div key={idx} style={{
-            background: '#052e16',
-            border: '1px solid #16a34a',
-            borderRadius: '6px',
-            padding: '10px 12px',
-            fontSize: '0.82rem',
-            color: '#86efac',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
+            background: '#052e16', border: '1px solid #16a34a', borderRadius: '6px',
+            padding: '10px 12px', fontSize: '0.82rem', color: '#86efac',
+            display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             ✅ 実装が完了しました
           </div>
@@ -1197,37 +1101,27 @@ export default function TaskDetail() {
       case 'test_cases_generating':
         return (
           <div key={idx} style={{
-            background: '#0f172a',
-            border: '1px solid #334155',
-            borderRadius: '6px',
-            padding: '10px 12px',
-            fontSize: '0.82rem',
-            color: '#94a3b8',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
+            background: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
+            padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
+            display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
             テストケースを生成しています...
           </div>
         )
 
-      case 'test_cases_ready': {
-        const isLastActive = idx === lastUnapprovedTestCasesIdx
-        const showButtons = isLastActive && !entry.approved && !isBusy
+      case 'test_cases_ready':
         return (
           <div key={idx} style={{
             background: '#0f172a',
             border: `1px solid ${entry.approved ? '#334155' : '#6366f1'}`,
-            borderRadius: '6px',
-            padding: '12px',
-            fontSize: '0.82rem',
+            borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: '#6366f1', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
-              テストケース {entry.approved ? '(承認済み)' : `— ${entry.items.length} 件`}
+              テストケース {entry.approved ? '(承認済み)' : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
             </div>
             {entry.items.length === 0 ? (
-              <div style={{ color: '#475569', fontSize: '0.82rem', marginBottom: showButtons ? '8px' : 0 }}>
+              <div style={{ color: '#475569', fontSize: '0.82rem' }}>
                 テストケースがまだ生成されていません
                 {confirmedPrompt && task?.status !== 'idle' && (
                   <span style={{ display: 'block', fontSize: '0.78rem', color: '#ef4444', marginTop: '4px' }}>
@@ -1236,7 +1130,7 @@ export default function TaskDetail() {
                 )}
               </div>
             ) : (
-              <div style={{ overflowX: 'auto', maxHeight: entry.approved ? '120px' : '200px', overflowY: 'auto', marginBottom: showButtons ? '8px' : 0 }}>
+              <div style={{ overflowX: 'auto', maxHeight: '200px', overflowY: 'auto' }}>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.75rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #334155', background: '#0a0f1e' }}>
@@ -1259,83 +1153,15 @@ export default function TaskDetail() {
                 </table>
               </div>
             )}
-
-            {isLastActive && !entry.approved && entry.items.length === 0 && confirmedPrompt && task?.status === 'idle' && (
-              <button
-                className="btn-primary"
-                onClick={handleGenerateTestCasesManual}
-                disabled={isBusy}
-                style={{ fontSize: '0.8rem', padding: '6px 12px', marginBottom: '8px' }}
-              >
-                テストケースを生成
-              </button>
-            )}
-
-            {showButtons && entry.items.length > 0 && (
-              <>
-                {showRevisionInput && (
-                  <div style={{ marginBottom: '8px' }}>
-                    <textarea
-                      className="instruction-textarea"
-                      value={revisionText}
-                      onChange={e => setRevisionText(e.target.value)}
-                      placeholder="修正してほしい内容を入力してください..."
-                      style={{ minHeight: '70px', fontSize: '0.82rem' }}
-                      autoFocus
-                    />
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                      <button
-                        className="btn-primary"
-                        disabled={!revisionText.trim()}
-                        onClick={() => handleRevisionRequest(revisionText.trim())}
-                        style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                      >
-                        送信
-                      </button>
-                      <button
-                        className="btn-secondary"
-                        onClick={() => { setShowRevisionInput(false); setRevisionText('') }}
-                        style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                      >
-                        キャンセル
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button
-                    className="btn-primary"
-                    onClick={() => handleApproveTestCases(entry.items)}
-                    style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                  >
-                    承認してテスト実行
-                  </button>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => { setShowRevisionInput(prev => !prev); setRevisionText('') }}
-                    style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                  >
-                    修正を依頼
-                  </button>
-                </div>
-              </>
-            )}
           </div>
         )
-      }
 
       case 'test_running':
         return (
           <div key={idx} style={{
-            background: '#0f172a',
-            border: '1px solid #334155',
-            borderRadius: '6px',
-            padding: '10px 12px',
-            fontSize: '0.82rem',
-            color: '#93c5fd',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
+            background: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
+            padding: '10px 12px', fontSize: '0.82rem', color: '#93c5fd',
+            display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
             {entry.label}
@@ -1348,17 +1174,14 @@ export default function TaskDetail() {
         const resultBorder = entry.passed ? '#16a34a' : '#dc2626'
         return (
           <div key={idx} style={{
-            background: resultBg,
-            border: `1px solid ${resultBorder}`,
-            borderRadius: '6px',
-            padding: '10px 12px',
-            fontSize: '0.82rem',
+            background: resultBg, border: `1px solid ${resultBorder}`,
+            borderRadius: '6px', padding: '10px 12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: resultColor, fontWeight: 600, marginBottom: entry.items.length > 0 ? '8px' : 0 }}>
               {entry.passed ? '✅' : '❌'} {entry.summary || (entry.passed ? 'テスト合格' : 'テスト失敗')}
             </div>
             {entry.items.length > 0 && (
-              <div style={{ overflowX: 'auto', maxHeight: '160px', overflowY: 'auto' }}>
+              <div style={{ overflowX: 'auto', maxHeight: '200px', overflowY: 'auto' }}>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.72rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
@@ -1392,71 +1215,32 @@ export default function TaskDetail() {
         )
       }
 
-      case 'review': {
-        const isLastActive = idx === lastUnresolvedReviewIdx
+      case 'review':
         return (
           <div key={idx} style={{
             background: '#0f172a',
             border: `1px solid ${entry.resolved ? '#334155' : '#facc15'}`,
-            borderRadius: '6px',
-            padding: '12px',
-            fontSize: '0.82rem',
+            borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: entry.resolved ? '#64748b' : '#facc15', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
-              実装確認 {entry.resolved ? '(完了)' : '— テスト完了。実装を確認してください'}
+              実装確認 {entry.resolved ? '(完了)' : '— 下のボタンで承認または差し戻し'}
             </div>
             <div style={{
-              background: '#1e293b',
-              borderRadius: '4px',
-              padding: '8px',
-              fontSize: '0.78rem',
-              color: '#94a3b8',
-              whiteSpace: 'pre-wrap',
-              maxHeight: '100px',
-              overflowY: 'auto',
-              marginBottom: isLastActive && !entry.resolved ? '10px' : 0,
+              background: '#1e293b', borderRadius: '4px', padding: '8px',
+              fontSize: '0.78rem', color: '#94a3b8', whiteSpace: 'pre-wrap',
+              maxHeight: '100px', overflowY: 'auto',
             }}>
               <span style={{ color: '#475569', fontSize: '0.7rem', display: 'block', marginBottom: '4px' }}>実行されたプロンプト</span>
               {entry.prompt}
             </div>
-            {isLastActive && !entry.resolved && (
-              <>
-                <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0 0 8px' }}>
-                  テスト結果と変更内容をログで確認してください。問題なければ「承認」、修正が必要なら「差し戻し」を選択してください。
-                </p>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    className="btn-primary"
-                    onClick={handleApproveImplementation}
-                    disabled={isBusy}
-                    style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                  >
-                    承認
-                  </button>
-                  <button
-                    className="btn-danger"
-                    onClick={handleRejectImplementation}
-                    disabled={isBusy}
-                    style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                  >
-                    差し戻し
-                  </button>
-                </div>
-              </>
-            )}
           </div>
         )
-      }
 
       case 'error':
         return (
           <div key={idx} style={{
-            background: '#450a0a',
-            border: '1px solid #dc2626',
-            borderRadius: '6px',
-            padding: '8px 12px',
-            fontSize: '0.82rem',
-            color: '#fca5a5',
+            background: '#450a0a', border: '1px solid #dc2626', borderRadius: '6px',
+            padding: '8px 12px', fontSize: '0.82rem', color: '#fca5a5',
           }}>
             ❌ {entry.message}
           </div>
@@ -1465,13 +1249,8 @@ export default function TaskDetail() {
       case 'info':
         return (
           <div key={idx} style={{
-            background: '#1e293b',
-            border: '1px solid #334155',
-            borderRadius: '6px',
-            padding: '8px 12px',
-            fontSize: '0.82rem',
-            color: '#94a3b8',
-            fontStyle: 'italic',
+            background: '#1e293b', border: '1px solid #334155', borderRadius: '6px',
+            padding: '8px 12px', fontSize: '0.82rem', color: '#94a3b8', fontStyle: 'italic',
           }}>
             {entry.message}
           </div>
@@ -1482,11 +1261,146 @@ export default function TaskDetail() {
     }
   }
 
+  function renderActionButtons() {
+    const isBusy = streaming || generating || clarifying || generatingTestCases || runningTests
+
+    // Determine current context from chatEntries
+    const lastUnconfirmedPrompt = chatEntries.reduce<(ChatEntry & { type: 'prompt_generated' }) | null>(
+      (last, e) => e.type === 'prompt_generated' && !e.confirmed ? e as ChatEntry & { type: 'prompt_generated' } : last, null)
+    const lastUnapprovedTestCases = chatEntries.reduce<(ChatEntry & { type: 'test_cases_ready' }) | null>(
+      (last, e) => e.type === 'test_cases_ready' && !e.approved ? e as ChatEntry & { type: 'test_cases_ready' } : last, null)
+    const lastUnresolvedReview = chatEntries.reduce<(ChatEntry & { type: 'review' }) | null>(
+      (last, e) => e.type === 'review' && !e.resolved ? e as ChatEntry & { type: 'review' } : last, null)
+
+    // Derive effective phase from selectedStep + chatEntries state
+    const effectiveStep = selectedStep
+
+    // --- confirming phase: unconfirmed prompt exists ---
+    if (lastUnconfirmedPrompt && effectiveStep !== 'unit_test' && effectiveStep !== 'review') {
+      return (
+        <>
+          <div style={{ marginBottom: '6px' }}>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: '0 0 4px' }}>
+              このプロンプトへの指摘・追加要望（任意）
+            </p>
+            <textarea
+              className="instruction-textarea"
+              value={feedback}
+              onChange={e => setFeedback(e.target.value)}
+              placeholder="例: エラーメッセージの表示場所も指定してほしい"
+              rows={2}
+              style={{ marginBottom: 0, minHeight: '50px', fontSize: '0.82rem' }}
+              disabled={isBusy}
+            />
+          </div>
+          <div className="instruction-footer" style={{ margin: 0 }}>
+            <button className="btn-primary" onClick={() => handleConfirmAndExecute(lastUnconfirmedPrompt.content)} disabled={isBusy}>
+              確定して実行
+            </button>
+            <button className="btn-secondary" onClick={handleRegenerate} disabled={isBusy}>
+              {generating ? '生成中...' : '再生成'}
+            </button>
+          </div>
+        </>
+      )
+    }
+
+    // --- unit_test step selected ---
+    if (effectiveStep === 'unit_test') {
+      if (lastUnapprovedTestCases) {
+        const items = lastUnapprovedTestCases.items
+        if (items.length === 0) {
+          // No test cases yet — offer generate button
+          return (
+            <div className="instruction-footer" style={{ margin: 0 }}>
+              {confirmedPrompt && task?.status === 'idle' ? (
+                <button className="btn-primary" onClick={handleGenerateTestCasesManual} disabled={isBusy}>
+                  テストケースを生成
+                </button>
+              ) : (
+                <span style={{ fontSize: '0.82rem', color: '#475569' }}>
+                  {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : 'テストケースを生成できません'}
+                </span>
+              )}
+            </div>
+          )
+        }
+        // Test cases exist — show approve / revision buttons
+        return (
+          <>
+            {showRevisionInput && (
+              <div style={{ marginBottom: '8px' }}>
+                <textarea
+                  className="instruction-textarea"
+                  value={revisionText}
+                  onChange={e => setRevisionText(e.target.value)}
+                  placeholder="修正してほしい内容を入力してください..."
+                  style={{ minHeight: '70px', fontSize: '0.82rem', marginBottom: '6px' }}
+                  autoFocus
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn-primary" disabled={!revisionText.trim()} onClick={() => handleRevisionRequest(revisionText.trim())}>
+                    送信
+                  </button>
+                  <button className="btn-secondary" onClick={() => { setShowRevisionInput(false); setRevisionText('') }}>
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="instruction-footer" style={{ margin: 0 }}>
+              <button className="btn-primary" onClick={() => handleApproveTestCases(items)} disabled={isBusy}>
+                {runningTests ? 'テスト実行中...' : '承認してテスト実行'}
+              </button>
+              <button className="btn-secondary" onClick={() => { setShowRevisionInput(prev => !prev); setRevisionText('') }} disabled={isBusy}>
+                修正を依頼
+              </button>
+            </div>
+          </>
+        )
+      }
+      // unit_test selected but all approved / no pending — offer re-run
+      const latestTestCases = chatEntries.reduce<(ChatEntry & { type: 'test_cases_ready' }) | null>(
+        (last, e) => e.type === 'test_cases_ready' ? e as ChatEntry & { type: 'test_cases_ready' } : last, null)
+      if (latestTestCases && latestTestCases.items.length > 0) {
+        return (
+          <div className="instruction-footer" style={{ margin: 0 }}>
+            <button className="btn-primary" onClick={() => handleApproveTestCases(latestTestCases.items)} disabled={isBusy}>
+              {runningTests ? 'テスト実行中...' : 'テストを再実行'}
+            </button>
+          </div>
+        )
+      }
+      return null
+    }
+
+    // --- review step selected ---
+    if (effectiveStep === 'review') {
+      if (lastUnresolvedReview) {
+        return (
+          <div className="instruction-footer" style={{ margin: 0 }}>
+            <button className="btn-primary" onClick={handleApproveImplementation} disabled={isBusy}>
+              承認
+            </button>
+            <button className="btn-danger" onClick={handleRejectImplementation} disabled={isBusy}>
+              差し戻し
+            </button>
+          </div>
+        )
+      }
+      return null
+    }
+
+    return null
+  }
+
   function renderInputArea() {
     const isClarifyMode = chatEntries.length > 0 &&
       chatEntries[chatEntries.length - 1].type === 'clarify_question'
     const isBusy = streaming || generating || clarifying || generatingTestCases || runningTests
     const canSend = !isBusy && instruction.trim().length > 0 && task?.status === 'idle'
+
+    const actionButtons = renderActionButtons()
 
     return (
       <div style={{
@@ -1498,6 +1412,12 @@ export default function TaskDetail() {
         gap: '8px',
         background: '#0a0f1e',
       }}>
+        {/* Action buttons for current phase (shown above textarea when present) */}
+        {actionButtons && (
+          <div style={{ borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
+            {actionButtons}
+          </div>
+        )}
         <textarea
           className="instruction-textarea"
           value={instruction}
@@ -1510,7 +1430,7 @@ export default function TaskDetail() {
               handleSendClarifyAnswer()
             }
           }}
-          style={{ minHeight: '72px', marginBottom: 0, resize: 'vertical' }}
+          style={{ minHeight: '60px', marginBottom: 0, resize: 'vertical' }}
         />
         <div className="instruction-footer" style={{ margin: 0 }}>
           {isClarifyMode ? (

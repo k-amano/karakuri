@@ -396,21 +396,17 @@ INFO:     Application startup complete.
 Xolvien をアップデートした後（`git pull` を実行した後）は、バックエンドを再起動する必要があります。
 再起動しないと、新機能が反映されなかったり文字化けなどの不具合が残ったりすることがあります。
 
-**ターミナル A で以下を実行します。**
+**ターミナル A（バックエンドが動いているターミナル）で以下を順番に実行します。**
 
 ---
 
-#### ケース A｜バックエンドが起動中の場合（ターミナル A が開いていて `Application startup complete.` が表示されている）
-
-**ステップ 1｜バックエンドを停止する**
-
-ターミナル A で以下を押します。
+#### ステップ 1｜バックエンドを停止する
 
 ```
 Ctrl + C
 ```
 
-以下のように表示されれば停止成功です。最後にコマンドプロンプトが戻ってきます。
+以下のように表示され、最後にコマンドプロンプト（`$` で終わる行）が戻ってきます。
 
 ```
 ^CINFO:     Shutting down
@@ -422,61 +418,20 @@ INFO:     Stopping reloader process [13104]
 (venv) administrator@owl:~/Projects/xolvien/backend$
 ```
 
-> **`(venv)` が行頭に表示されています。** これはバックエンドを起動したときに有効にした仮想環境がそのまま残っている状態です。この場合、次の「ステップ 3：仮想環境を有効にする」は **省略できます**。ステップ 2 の確認だけ行ってステップ 4 に進んでください。
+行頭に `(venv)`、行末に `xolvien/backend$` と表示されていれば OK です。
+`Ctrl+C` を押すとバックエンドは停止しますが、仮想環境（`venv`）とディレクトリの位置はそのまま保たれます。
 
 ---
 
-#### ケース B｜ターミナルを閉じてしまった場合・バックエンドがすでに停止している場合
-
-**新しいターミナルウィンドウを開いて**、ステップ 2 から始めます。
-
----
-
-#### ステップ 2｜`backend/` ディレクトリにいるか確認する
-
-ターミナルの行末を確認します。
-
-```
-(venv) administrator@owl:~/Projects/xolvien/backend$
-```
-
-行末が `xolvien/backend$` になっていれば OK です。なっていない場合は以下を実行します。
-
-```bash
-cd ~/Projects/xolvien/backend
-```
-
-> クローンした場所が違う場合はパスを変えてください（例：`cd ~/xolvien/backend`）。
-
----
-
-#### ステップ 3｜仮想環境を有効にする（ケース B のみ）
-
-ケース A（`Ctrl+C` で停止した場合）はすでに `(venv)` が有効なので **この手順は不要です**。
-
-ケース B（新しいターミナルを開いた場合）は以下を実行します。
-
-```bash
-source venv/bin/activate
-```
-
-行頭に `(venv)` が付いていれば OK です。
-
-```
-(venv) administrator@owl:~/Projects/xolvien/backend$
-```
-
----
-
-#### ステップ 4｜データベースを最新にする
-
-テーブルが追加・変更された場合に必要です。**毎回実行しても問題ありません。**
+#### ステップ 2｜データベースを最新にする
 
 ```bash
 alembic upgrade head
 ```
 
-**新しいマイグレーションが適用された場合：**
+以下のように表示されれば OK です。
+
+**新しいテーブルが追加された場合（アップデートの内容による）：**
 ```
 INFO  [alembic.runtime.migration] Running upgrade xxxxxxxx -> yyyyyyyy, add_test_case_items_and_results
 ```
@@ -487,11 +442,11 @@ INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
 INFO  [alembic.runtime.migration] Will assume transactional DDL.
 ```
 
-`Running upgrade` の行が出ない場合はすでに最新の状態です。問題ありません。
+`Running upgrade` の行が出ない場合はすでに最新です。問題ありません。どちらの場合も次へ進みます。
 
 ---
 
-#### ステップ 5｜バックエンドを起動する
+#### ステップ 3｜バックエンドを起動する
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -510,7 +465,7 @@ INFO:     Application startup complete.
 
 ---
 
-#### ステップ 6｜ブラウザを再読み込みする
+#### ステップ 4｜ブラウザを再読み込みする
 
 バックエンドの再起動後は、ブラウザで **F5**（または Ctrl+R / Cmd+R）を押して再読み込みしてください。
 
