@@ -389,18 +389,101 @@ INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 ```
 
-> **Xolvien をアップデートした後は必ずバックエンドを再起動してください。**
-> アップデート後にバックエンドが古いままだと、新機能が反映されなかったり、文字化けなどの不具合が残ったりすることがあります。
-> 再起動するには、ターミナル A で `Ctrl + C` を押して停止し、同じコマンドを再度実行します。
->
-> データベースの構造が変わった場合（テーブルが追加されるなど）は、再起動前に以下のマイグレーションも実行してください。
->
-> ```bash
-> cd xolvien/backend
-> source venv/bin/activate
-> alembic upgrade head
-> uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-> ```
+---
+
+### バックエンドを再起動する（アップデート後など）
+
+Xolvien をアップデートした後（`git pull` を実行した後）は、バックエンドを再起動する必要があります。
+再起動しないと、新機能が反映されなかったり文字化けなどの不具合が残ったりすることがあります。
+
+**ターミナル A で以下を実行します。**
+
+#### ステップ 1｜実行中のバックエンドを停止する
+
+バックエンドが起動中の場合（`Application startup complete.` が表示されているターミナル）は、まず停止します。
+
+```
+Ctrl + C
+```
+
+以下のように表示されれば停止成功です。
+
+```
+INFO:     Shutting down
+INFO:     Finished server process [XXXXX]
+```
+
+バックエンドがすでに停止している場合（ターミナルを閉じてしまった場合など）は、この手順をとばして次へ進みます。
+
+---
+
+#### ステップ 2｜ディレクトリを確認する
+
+`backend/` ディレクトリにいない場合は移動します。
+
+```bash
+cd ~/Projects/xolvien/backend   # クローンした場所に合わせて変更してください
+```
+
+行末が `xolvien/backend$` になっていれば OK です。
+
+---
+
+#### ステップ 3｜仮想環境を有効にする
+
+```bash
+source venv/bin/activate
+```
+
+行頭に `(venv)` が付いていれば OK です。
+
+```
+(venv) administrator@owl:~/Projects/xolvien/backend$
+```
+
+---
+
+#### ステップ 4｜データベースを最新にする
+
+テーブルが追加・変更された場合に必要です。**毎回実行しても問題ありません。**
+
+```bash
+alembic upgrade head
+```
+
+以下のように表示されれば OK です。
+
+**新しいマイグレーションが適用された場合：**
+```
+INFO  [alembic.runtime.migration] Running upgrade xxxxxxxx -> yyyyyyyy, add_test_case_items_and_results
+```
+
+**すでに最新の場合（何も適用しなかった場合）：**
+```
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+```
+`Running upgrade` の行が出ない場合は、すでに最新の状態です。問題ありません。
+
+---
+
+#### ステップ 5｜バックエンドを起動する
+
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+以下のように表示されれば再起動成功です。
+
+```
+INFO:     Application startup complete.
+```
+
+---
+
+#### ステップ 6｜ブラウザを再読み込みする
+
+バックエンドの再起動後は、ブラウザで **F5**（または Ctrl+R / Cmd+R）を押して再読み込みしてください。
 
 ---
 
