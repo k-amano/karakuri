@@ -1334,8 +1334,36 @@ export default function TaskDetail() {
                     </table>
                   </div>
                 ) : (
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '0.85rem' }}>
-                    テストケースがまだ生成されていません
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: '#475569', fontSize: '0.85rem' }}>
+                    <span>テストケースがまだ生成されていません</span>
+                    {confirmedPrompt && (
+                      <button
+                        className="btn-primary"
+                        onClick={() => {
+                          setGeneratedTestCases('')
+                          setEditableTestCases('')
+                          setGeneratingTestCases(true)
+                          generateTestCasesStream(
+                            taskId,
+                            confirmedPrompt,
+                            (chunk) => setGeneratedTestCases(prev => prev + chunk),
+                            async () => {
+                              setGeneratingTestCases(false)
+                              try {
+                                const items = await getTestCaseItems(taskId)
+                                setTestCaseItems(items)
+                              } catch { /* ignore */ }
+                            },
+                            (err) => {
+                              setGeneratingTestCases(false)
+                              alert(`テストケース生成エラー: ${err}`)
+                            }
+                          )
+                        }}
+                      >
+                        テストケースを生成
+                      </button>
+                    )}
                   </div>
                 )}
 
