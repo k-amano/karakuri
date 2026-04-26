@@ -1427,11 +1427,10 @@ export default function TaskDetail() {
       background: '#0a0f1e',
     }
 
-    // ── 単体テスト・実装確認フェーズ: テキストエリア非表示、アクションボタンのみ ──
+    // ── 単体テスト・実装確認フェーズ ──
     if (selectedStep === 'unit_test' || selectedStep === 'review') {
       return (
         <div style={wrapperStyle}>
-          {renderActionButtons()}
           <textarea
             className="instruction-textarea"
             value=""
@@ -1440,6 +1439,7 @@ export default function TaskDetail() {
             disabled
             style={{ minHeight: '60px', marginBottom: 0, resize: 'none', opacity: 0.35 }}
           />
+          {renderActionButtons()}
         </div>
       )
     }
@@ -1450,12 +1450,6 @@ export default function TaskDetail() {
 
     return (
       <div style={wrapperStyle}>
-        {/* Confirm/regenerate buttons shown above textarea when unconfirmed prompt exists */}
-        {actionButtons && (
-          <div style={{ borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
-            {actionButtons}
-          </div>
-        )}
         <textarea
           className="instruction-textarea"
           value={instruction}
@@ -1470,6 +1464,11 @@ export default function TaskDetail() {
           }}
           style={{ minHeight: '60px', marginBottom: 0, resize: 'vertical' }}
         />
+        {actionButtons && (
+          <div style={{ borderTop: '1px solid #1e293b', paddingTop: '8px' }}>
+            {actionButtons}
+          </div>
+        )}
         <div className="instruction-footer" style={{ margin: 0 }}>
           {isClarifyMode ? (
             <>
