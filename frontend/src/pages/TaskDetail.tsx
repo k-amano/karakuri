@@ -1359,7 +1359,7 @@ export default function TaskDetail() {
           </>
         )
       }
-      // unit_test selected but all approved / no pending — offer re-run
+      // unit_test selected but all approved / no pending — offer re-run or initial generate
       const latestTestCases = chatEntries.reduce<(ChatEntry & { type: 'test_cases_ready' }) | null>(
         (last, e) => e.type === 'test_cases_ready' ? e as ChatEntry & { type: 'test_cases_ready' } : last, null)
       if (latestTestCases && latestTestCases.items.length > 0) {
@@ -1371,7 +1371,20 @@ export default function TaskDetail() {
           </div>
         )
       }
-      return null
+      // No test cases at all — offer initial generate
+      return (
+        <div className="instruction-footer" style={{ margin: 0 }}>
+          {confirmedPrompt && task?.status === 'idle' ? (
+            <button className="btn-primary" onClick={handleGenerateTestCasesManual} disabled={isBusy}>
+              {generatingTestCases ? 'テストケース生成中...' : 'テストケースを生成'}
+            </button>
+          ) : (
+            <span style={{ fontSize: '0.82rem', color: '#475569' }}>
+              {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : '先に実装を実行してください'}
+            </span>
+          )}
+        </div>
+      )
     }
 
     // --- review step selected ---
