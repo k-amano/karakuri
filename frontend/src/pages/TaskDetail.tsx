@@ -211,8 +211,14 @@ export default function TaskDetail() {
         ])
 
         const hasImpl = !!lastInstruction
-        const lastUnit = runs.find(r => r.test_type === 'unit' && r.completed_at)
-        const lastIntegration = runs.find(r => r.test_type === 'integration' && r.completed_at)
+        const completedUnitRuns = runs.filter(r => r.test_type === 'unit' && r.completed_at)
+        const lastUnit = completedUnitRuns.length > 0
+          ? completedUnitRuns.reduce((a, b) => (a.id > b.id ? a : b))
+          : undefined
+        const completedIntegrationRuns = runs.filter(r => r.test_type === 'integration' && r.completed_at)
+        const lastIntegration = completedIntegrationRuns.length > 0
+          ? completedIntegrationRuns.reduce((a, b) => (a.id > b.id ? a : b))
+          : undefined
 
         if (!hasImpl && !lastUnit && !lastIntegration) return
 
@@ -811,7 +817,8 @@ export default function TaskDetail() {
         try {
           const [runs, freshItems] = await Promise.all([getTestRuns(taskId), getTestCaseItems(taskId, 'unit')])
           setTestCaseItems(freshItems)
-          const lastUnit = runs.find(r => r.test_type === 'unit' && r.completed_at)
+          const completedUnitRuns = runs.filter(r => r.test_type === 'unit' && r.completed_at)
+          const lastUnit = completedUnitRuns.length > 0 ? completedUnitRuns.reduce((a, b) => (a.id > b.id ? a : b)) : undefined
           if (lastUnit) {
             setTestResultSummary(lastUnit.summary ?? null)
             setTestPassed(lastUnit.passed)
@@ -910,7 +917,8 @@ export default function TaskDetail() {
         try {
           const [runs, freshItems] = await Promise.all([getTestRuns(taskId), getTestCaseItems(taskId, 'integration')])
           setIntegrationTestCaseItems(freshItems)
-          const lastIntegration = runs.find(r => r.test_type === 'integration' && r.completed_at)
+          const completedIntegrationRuns = runs.filter(r => r.test_type === 'integration' && r.completed_at)
+          const lastIntegration = completedIntegrationRuns.length > 0 ? completedIntegrationRuns.reduce((a, b) => (a.id > b.id ? a : b)) : undefined
           if (lastIntegration) {
             setTestResultSummary(lastIntegration.summary ?? null)
             setTestPassed(lastIntegration.passed)
