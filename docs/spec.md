@@ -1,6 +1,6 @@
 # Xolvien — 現行仕様
 
-**最終更新**: 2026-04-28
+**最終更新**: 2026-04-28（結合テスト品質改善）
 
 本書は現時点で実装済みの仕様を記録する。未実装の将来機能は `roadmap.md` に記載する。
 
@@ -339,7 +339,7 @@ backend/app/
 
 - `_detect_test_command()` が `package.json`（Node.js）→ `pyproject.toml` / `setup.py`（Python）の順に判定。`requirements.txt` 単独では Python とみなさない
 - Node.js プロジェクトは `npm test -- --watchAll=false --verbose 2>&1`、Python は `python -m pytest -v 2>&1` を実行
-- テスト実行前にバックエンドが `/tmp/xolvien_tc_results.jsonl` を `chmod 777` で作成。テストコードは `console.log('XOLVIEN_RESULT:{"tc_id":"TC-001","actual":"..."}')` で実際の出力値を記録
+- テスト実行前にバックエンドが `/tmp/xolvien_tc_results.jsonl`（単体テスト）または `/tmp/xolvien_itc_results.jsonl`（結合テスト）を `chmod 777` で作成。テストコードは `console.log('XOLVIEN_RESULT:{"tc_id":"TC-001","actual":"..."}')` または `ITC-001` 形式で実際の出力値を記録
 - バックエンドはテスト出力の `XOLVIEN_RESULT:` 行をパースして `test_case_results.actual_output` に保存
 - `test_run.summary` は `test_case_results` の verdict 集計から生成（テスト関数数ではなく TC 件数ベース）
 - 自動修正ループ（最大3回）：修正プロンプトには「修正のみ行うこと、テストの再実行は不要」と指示してバックエンド側でテストを再実行

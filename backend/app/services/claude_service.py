@@ -459,7 +459,18 @@ README:
         )
 
         if is_integration:
-            prompt = f"""あなたは結合テスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、APIエンドポイント・DB操作・コンポーネント間の連携を検証するテストケースを生成してください。
+            prompt = f"""あなたは結合テスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、結合テストケース一覧を生成してください。
+
+## 結合テストとは何か（重要）
+
+**結合テストは単体テストではありません。** 以下の違いを必ず守ってください：
+
+- 単体テスト: 個別の関数・コンポーネントの動作（例: フォームのバリデーション、localStorageへの書き込み）
+- **結合テスト: 複数コンポーネント・レイヤーが連携して動作すること**
+  - フロントエンド → APIサーバー → DB の一連のフロー
+  - HTTP リクエスト → レスポンス → DB の状態変化
+  - 認証フロー（ログイン → トークン取得 → 認証が必要なAPIの呼び出し）
+  - 複数APIを組み合わせた業務フロー（作成 → 更新 → 削除 → 一覧取得）
 
 ## 実装予定の内容
 {implementation_prompt}
@@ -473,18 +484,19 @@ README:
 [
   {{
     "seq_no": 1,
-    "target_screen": "対象API・コンポーネント名",
+    "target_screen": "対象APIエンドポイントまたはフロー名（例: POST /api/users、ログインフロー）",
     "test_item": "テスト項目の名称",
-    "operation": "具体的な入力値を含む操作手順（例: POST /api/users に {{\\"name\\": \\"Alice\\"}} を送信する）",
-    "expected_output": "期待される具体的な出力値（例: レスポンスステータス201、DBにユーザーが登録されている）",
+    "operation": "具体的なHTTPリクエストの内容（例: POST /api/users に Authorization: Bearer token、Body: {{\\"name\\": \\"Alice\\", \\"email\\": \\"alice@example.com\\"}} を送信する）",
+    "expected_output": "期待されるHTTPレスポンスとDB状態（例: ステータス201、レスポンスBody: {{\\"id\\": 1, \\"name\\": \\"Alice\\"}}、DBのusersテーブルにレコードが1件追加されている）",
     "function_name": "test_itc001_短い説明（英数字とアンダースコアのみ）"
   }}
 ]
 ```
 
 ## 注意事項
-- APIエンドポイント・DB操作・コンポーネント間の連携を検証すること
-- 正常系・異常系・境界値を網羅し、各テストケースに具体的な入力値と期待出力値を必ず記述すること
+- **必ずHTTPリクエスト/レスポンスレベルのテストを設計すること**（DOMやlocalStorageのテストは結合テストではない）
+- **実際のAPIエンドポイントのURL、HTTPメソッド、リクエストボディ、レスポンスステータスを具体的に記述すること**
+- 正常系・異常系・業務フロー連携を中心に **10〜15件程度**（多すぎない）
 - function_name は `test_itc{{seq_no:03d}}_` で始まる英数字・アンダースコアのみの関数名にすること
 - JSON以外のテキスト（説明文・Markdownの見出し等）は出力しないこと
 - テストコードは生成しないこと（テストケース定義のみ）
@@ -716,14 +728,16 @@ README:
             "/workspace",
         )
 
-        xolvien_result_instruction = """
+        tc_id_example = "ITC-001" if is_integration else "TC-001"
+        tc_func_example = "test_itc001_xxx" if is_integration else "test_tc001_xxx"
+        xolvien_result_instruction = f"""
    **重要: 各テストケースは必ず以下のパターンで実際の出力値を `console.log` で出力すること**
 
    Jest（Node.js）の場合の例:
    ```javascript
-   test('TC-001: テスト名', () => {{
+   test('{tc_id_example}: テスト名', () => {{
      const actual = /* 実際の値 */;
-     console.log('XOLVIEN_RESULT:' + JSON.stringify({{tc_id: 'TC-001', actual: String(actual)}}));
+     console.log('XOLVIEN_RESULT:' + JSON.stringify({{tc_id: '{tc_id_example}', actual: String(actual)}}));
      expect(actual).toBe(/* 期待値 */);
    }});
    ```
@@ -731,9 +745,9 @@ README:
    pytest（Python）の場合の例:
    ```python
    import json
-   def test_tc001_xxx():
+   def {tc_func_example}():
        actual = /* 実際の値 */
-       print('XOLVIEN_RESULT:' + json.dumps({{'tc_id': 'TC-001', 'actual': str(actual)}}))
+       print('XOLVIEN_RESULT:' + json.dumps({{'tc_id': '{tc_id_example}', 'actual': str(actual)}}))
        assert actual == /* 期待値 */
    ```"""
 
@@ -835,9 +849,10 @@ README:
         last_output = ""
         last_error = ""
 
+        results_file = "/tmp/xolvien_itc_results.jsonl" if is_integration else "/tmp/xolvien_tc_results.jsonl"
         self.docker_service.execute_command(
             task.container_id,
-            "rm -f /tmp/xolvien_tc_results.jsonl && touch /tmp/xolvien_tc_results.jsonl && chmod 777 /tmp/xolvien_tc_results.jsonl",
+            f"rm -f {results_file} && touch {results_file} && chmod 777 {results_file}",
             "/workspace/repo",
         )
 
@@ -937,7 +952,7 @@ README:
         if not actual_by_tc_id:
             _, jsonl_content, _ = self.docker_service.execute_command(
                 task.container_id,
-                "cat /tmp/xolvien_tc_results.jsonl 2>/dev/null || echo ''",
+                f"cat {results_file} 2>/dev/null || echo ''",
                 "/workspace/repo",
             )
             for line in jsonl_content.splitlines():

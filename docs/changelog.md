@@ -2,6 +2,40 @@
 
 ---
 
+## 2026-04-28
+
+### 結合テスト品質改善・バグ修正
+
+**変更内容:**
+
+- バックエンド `claude_service.py`：結合テスト実行時の EACCES エラーを修正
+  - 単体テスト用の `/tmp/xolvien_tc_results.jsonl` のみ事前作成していたため、結合テストで `/tmp/xolvien_itc_results.jsonl` への書き込みが全件失敗していた
+  - `_run_tests()` に `results_file` 変数を追加し、`is_integration` フラグで JSONL ファイルパスを切り替え。作成・読み取りの両方で正しいパスを使用
+
+- バックエンド `claude_service.py`：結合テストケース生成プロンプトを改善
+  - 単体テストとの違い（DOM/localStorage ではなく HTTP リクエスト→API→DB のフロー）を明示するセクションを追加
+  - `target_screen`・`operation`・`expected_output` に HTTP メソッド・URL・リクエストボディ・レスポンスステータスを必須記述するよう指示を強化
+  - テストケース件数を 10〜15 件に制限（単体テスト同様の大量件数から削減）
+
+- バックエンド `claude_service.py`：結合テストコード生成プロンプトの `XOLVIEN_RESULT:` サンプルを修正
+  - 結合テストのサンプルが `TC-001`/`test_tc001_xxx` のままだったため `ITC-001`/`test_itc001_xxx` に切り替え
+
+### フェーズ2: 結合テストケース分離（案A）
+
+**変更内容:**
+
+- バックエンド `claude_service.py`：`generate_test_cases()` に `test_type` 引数を追加
+  - UNIT: `TC-NNN` / `test_tc001_` 形式、INTEGRATION: `ITC-NNN` / `test_itc001_` 形式
+  - 既存の同 `test_type` の TC のみ削除して保存（他種別は保持）
+- バックエンド `instructions.py`：`POST /generate-integration-test-cases`・`POST /run-integration-tests` エンドポイントを追加
+- DBマイグレーション `a1b2c3d4e5f6`：`test_case_items` テーブルに `test_type` カラム追加（既存の `testtype` PG enum を `create_type=False` で共有）
+- フロントエンド `TaskDetail.tsx`：結合テストケースの生成→確認→承認→実行の独立フローを追加
+- フロントエンド `api.ts`：`getTestCaseItems(taskId, testType?)` に `test_type` クエリパラメータ対応を追加
+- セッション再開時に単体・結合テストケースをそれぞれ DB から復元
+- エラー発生時にチャット欄にエラーメッセージを表示（サイレント握り潰しを廃止）
+
+---
+
 ## 2026-04-21
 
 ### テスト結果サマリー表示・修正UI改善（H2・H3）
