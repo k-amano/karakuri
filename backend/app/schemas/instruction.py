@@ -20,6 +20,11 @@ class RunIntegrationTestsRequest(BaseModel):
     implementation_prompt: str
 
 
+class RunE2ETestsRequest(BaseModel):
+    """Request schema for running E2E tests."""
+    implementation_prompt: str
+
+
 class GeneratePromptRequest(BaseModel):
     """Request schema for prompt generation."""
 

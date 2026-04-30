@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import type { Task, TaskLog, TaskStatus, LogLevel } from '../types'
-import { getTask, getLogs, stopTask, executeInstructionStream, generatePromptStream, clarifyStream, gitPushStream, generateTestCasesStream, generateIntegrationTestCasesStream, runUnitTestsStream, runIntegrationTestsStream, getTestRuns, getLastCompletedInstruction, getTestCaseItems } from '../services/api'
+import { getTask, getLogs, stopTask, executeInstructionStream, generatePromptStream, clarifyStream, gitPushStream, generateTestCasesStream, generateIntegrationTestCasesStream, generateE2ETestCasesStream, runUnitTestsStream, runIntegrationTestsStream, runE2ETestsStream, getTestRuns, getLastCompletedInstruction, getTestCaseItems } from '../services/api'
 import type { TestCaseItem } from '../types'
 
 type ChatEntry =
@@ -17,6 +17,8 @@ type ChatEntry =
   | { type: 'test_cases_ready'; items: TestCaseItem[]; approved: boolean }
   | { type: 'integration_test_cases_generating' }
   | { type: 'integration_test_cases_ready'; items: TestCaseItem[]; approved: boolean }
+  | { type: 'e2e_test_cases_generating' }
+  | { type: 'e2e_test_cases_ready'; items: TestCaseItem[]; approved: boolean }
   | { type: 'test_running'; label: string }
   | { type: 'test_done'; summary: string; passed: boolean; items: TestCaseItem[] }
   | { type: 'review'; prompt: string; items: TestCaseItem[]; resolved: boolean }
@@ -139,6 +141,7 @@ export default function TaskDetail() {
   const setTestPassed = (_v: boolean | null) => { /* stored in chatEntries */ }
   const [, setTestCaseItems] = useState<TestCaseItem[]>([])
   const [, setIntegrationTestCaseItems] = useState<TestCaseItem[]>([])
+  const [, setE2ETestCaseItems] = useState<TestCaseItem[]>([])
   const [showRevisionInput, setShowRevisionInput] = useState(false)
   const [revisionText, setRevisionText] = useState('')
   const [confirmedPrompt, setConfirmedPrompt] = useState('')
@@ -155,7 +158,7 @@ export default function TaskDetail() {
     { id: 'implement',         label: '実装',       status: 'pending' },
     { id: 'unit_test',         label: '単体テスト', status: 'pending' },
     { id: 'integration_test',  label: '結合テスト',   status: 'pending' },
-    { id: 'e2e_test',          label: 'E2Eテスト',   status: 'pending', future: true },
+    { id: 'e2e_test',          label: 'E2Eテスト',   status: 'pending' },
     { id: 'review',            label: '実装確認',     status: 'pending' },
   ])
 
@@ -203,11 +206,12 @@ export default function TaskDetail() {
 
     async function checkResume() {
       try {
-        const [runs, lastInstruction, unitItems, integrationItems] = await Promise.all([
+        const [runs, lastInstruction, unitItems, integrationItems, e2eItems] = await Promise.all([
           getTestRuns(taskId),
           getLastCompletedInstruction(taskId),
           getTestCaseItems(taskId, 'unit'),
           getTestCaseItems(taskId, 'integration'),
+          getTestCaseItems(taskId, 'e2e'),
         ])
 
         const hasImpl = !!lastInstruction
@@ -219,8 +223,12 @@ export default function TaskDetail() {
         const lastIntegration = completedIntegrationRuns.length > 0
           ? completedIntegrationRuns.reduce((a, b) => (a.id > b.id ? a : b))
           : undefined
+        const completedE2ERuns = runs.filter(r => r.test_type === 'e2e' && r.completed_at)
+        const lastE2E = completedE2ERuns.length > 0
+          ? completedE2ERuns.reduce((a, b) => (a.id > b.id ? a : b))
+          : undefined
 
-        if (!hasImpl && !lastUnit && !lastIntegration) return
+        if (!hasImpl && !lastUnit && !lastIntegration && !lastE2E) return
 
         const prompt = lastInstruction?.content ?? ''
         const initialEntries: ChatEntry[] = []
@@ -265,7 +273,24 @@ export default function TaskDetail() {
                 items: integrationItems,
               })
               if (lastIntegration.passed) {
-                initialEntries.push({ type: 'review', prompt, items: unitItems, resolved: false })
+                if (e2eItems.length > 0) {
+                  setE2ETestCaseItems(e2eItems)
+                  const e2eTCApproved = lastE2E != null
+                  initialEntries.push({ type: 'e2e_test_cases_ready', items: e2eItems, approved: e2eTCApproved })
+                } else {
+                  initialEntries.push({ type: 'e2e_test_cases_ready', items: [], approved: false })
+                }
+                if (lastE2E) {
+                  initialEntries.push({
+                    type: 'test_done',
+                    summary: lastE2E.summary ?? '',
+                    passed: lastE2E.passed,
+                    items: e2eItems,
+                  })
+                  if (lastE2E.passed) {
+                    initialEntries.push({ type: 'review', prompt, items: unitItems, resolved: false })
+                  }
+                }
               }
             }
           } else {
@@ -290,14 +315,22 @@ export default function TaskDetail() {
               return lastIntegration.passed
                 ? { ...step, status: 'done_pass', resultLabel: lastIntegration.summary ?? undefined }
                 : { ...step, status: 'done_fail', resultLabel: lastIntegration.summary ?? undefined }
+            case 'e2e_test':
+              if (!lastIntegration?.passed) return step
+              if (!lastE2E) return { ...step, status: 'active' }
+              return lastE2E.passed
+                ? { ...step, status: 'done_pass', resultLabel: lastE2E.summary ?? undefined }
+                : { ...step, status: 'done_fail', resultLabel: lastE2E.summary ?? undefined }
             case 'review':
-              return lastIntegration?.passed ? { ...step, status: 'active' } : step
+              return lastE2E?.passed ? { ...step, status: 'active' } : step
             default:
               return step
           }
         }))
 
-        if (lastIntegration?.passed) setSelectedStep('review')
+        if (lastE2E?.passed) setSelectedStep('review')
+        else if (lastE2E) setSelectedStep('e2e_test')
+        else if (lastIntegration?.passed) setSelectedStep('e2e_test')
         else if (lastIntegration) setSelectedStep('integration_test')
         else if (lastUnit?.passed) setSelectedStep('integration_test')
         else if (lastUnit) setSelectedStep('unit_test')
@@ -927,7 +960,7 @@ export default function TaskDetail() {
             setTestPassed(lastIntegration.passed)
             setSteps(prev => prev.map(s => {
               if (s.id === 'integration_test') return { ...s, status: lastIntegration.passed ? 'done_pass' : 'done_fail', resultLabel: lastIntegration.summary ?? undefined }
-              if (s.id === 'review') return { ...s, status: 'active' }
+              if (s.id === 'e2e_test' && lastIntegration.passed) return { ...s, status: 'active' }
               return s
             }))
             setChatEntries(prev => {
@@ -937,10 +970,11 @@ export default function TaskDetail() {
                   : e
               )
               if (lastIntegration.passed) {
-                return [...mapped, { type: 'review' as const, prompt: confirmedPrompt, items: freshItems, resolved: false }]
+                return [...mapped, { type: 'e2e_test_cases_ready' as const, items: [], approved: false }]
               }
               return mapped
             })
+            if (lastIntegration.passed) setSelectedStep('e2e_test')
           }
         } catch { /* ignore */ }
       },
@@ -1049,6 +1083,161 @@ export default function TaskDetail() {
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
             ? { type: 'error', message: `結合テストケース生成エラー: ${err}` }
+            : e
+        ))
+      }
+    )
+  }
+
+  async function handleApproveE2ETestCases(items: TestCaseItem[]) {
+    if (items.length === 0 || runningTests) return
+    setRunningTests(true)
+    setRunningTestType('e2e')
+    testCountRef.current = { passed: 0, failed: 0 }
+
+    setChatEntries(prev => prev.map(e =>
+      e.type === 'e2e_test_cases_ready' && !e.approved ? { ...e, approved: true } : e
+    ))
+
+    setChatEntries(prev => {
+      streamingEntryIndexRef.current = prev.length
+      return [...prev, { type: 'test_running', label: 'E2Eテストコードを生成中' }]
+    })
+
+    streamKeyRef.current += 1
+    const currentKey = `stream-${streamKeyRef.current}`
+    setLogEntries(prev => [...prev, { kind: 'stream', text: '', key: currentKey }])
+
+    await runE2ETestsStream(
+      taskId,
+      confirmedPrompt,
+      (chunk) => {
+        setLogEntries(prev =>
+          prev.map(entry =>
+            entry.kind === 'stream' && entry.key === currentKey
+              ? { ...entry, text: entry.text + chunk }
+              : entry
+          )
+        )
+        let newLabel: string | null = null
+        if (chunk.includes('[E2E] テストを実行しています') || chunk.includes('[E2E] テストを再実行しています')) {
+          testCountRef.current = { passed: 0, failed: 0 }
+          newLabel = 'E2Eテストを実行中 (0件完了)'
+        } else if (chunk.includes('[E2E] 自動修正')) {
+          const m = chunk.match(/自動修正 \((\d+)\/(\d+)\)/)
+          newLabel = m ? `自動修正中 ${m[1]}/${m[2]}` : '自動修正中'
+        } else {
+          let updated = false
+          for (const line of chunk.split('\n')) {
+            if (/\bPASSED\b/.test(line) || /^\s*✓/.test(line) || /^\s*✔/.test(line)) {
+              testCountRef.current.passed += 1; updated = true
+            } else if (/\bFAILED\b/.test(line) || /^\s*✕/.test(line) || /^\s*✗/.test(line) || /^\s*×/.test(line)) {
+              testCountRef.current.failed += 1; updated = true
+            }
+          }
+          if (updated) {
+            const { passed, failed } = testCountRef.current
+            const total = passed + failed
+            newLabel = failed > 0 ? `E2Eテストを実行中 (${total}件完了 / ${failed}件失敗)` : `E2Eテストを実行中 (${total}件完了)`
+          }
+        }
+        if (newLabel) {
+          setTestPhaseLabel(newLabel)
+          setChatEntries(prev => prev.map((e, i) =>
+            i === streamingEntryIndexRef.current && e.type === 'test_running'
+              ? { ...e, label: newLabel! }
+              : e
+          ))
+        }
+      },
+      async () => {
+        setRunningTests(false)
+        setRunningTestType(null)
+        setTestPhaseLabel(null)
+        try {
+          const [runs, freshItems] = await Promise.all([getTestRuns(taskId), getTestCaseItems(taskId, 'e2e')])
+          setE2ETestCaseItems(freshItems)
+          const completedE2ERuns = runs.filter(r => r.test_type === 'e2e' && r.completed_at)
+          const lastE2E = completedE2ERuns.length > 0 ? completedE2ERuns.reduce((a, b) => (a.id > b.id ? a : b)) : undefined
+          if (lastE2E) {
+            setTestResultSummary(lastE2E.summary ?? null)
+            setTestPassed(lastE2E.passed)
+            setSteps(prev => prev.map(s => {
+              if (s.id === 'e2e_test') return { ...s, status: lastE2E.passed ? 'done_pass' : 'done_fail', resultLabel: lastE2E.summary ?? undefined }
+              if (s.id === 'review' && lastE2E.passed) return { ...s, status: 'active' }
+              return s
+            }))
+            setChatEntries(prev => {
+              const mapped = prev.map((e, i) =>
+                i === streamingEntryIndexRef.current && e.type === 'test_running'
+                  ? { type: 'test_done' as const, summary: lastE2E.summary ?? '', passed: lastE2E.passed, items: freshItems }
+                  : e
+              )
+              if (lastE2E.passed) {
+                return [...mapped, { type: 'review' as const, prompt: confirmedPrompt, items: freshItems, resolved: false }]
+              }
+              return mapped
+            })
+            if (lastE2E.passed) setSelectedStep('review')
+          }
+        } catch { /* ignore */ }
+      },
+      (err) => {
+        setRunningTests(false)
+        setRunningTestType(null)
+        setTestPhaseLabel(null)
+        setChatEntries(prev => prev.map((e, i) =>
+          i === streamingEntryIndexRef.current && e.type === 'test_running'
+            ? { type: 'error', message: `E2Eテスト実行エラー: ${err}` }
+            : e
+        ))
+      }
+    )
+  }
+
+  async function handleGenerateE2ETestCasesManual() {
+    if (!confirmedPrompt || task?.status !== 'idle') return
+    setGeneratingTestCases(true)
+    setChatEntries(prev => {
+      streamingEntryIndexRef.current = prev.length
+      return [...prev, { type: 'e2e_test_cases_generating' }]
+    })
+    streamKeyRef.current += 1
+    const tcStreamKey = `stream-${streamKeyRef.current}`
+    setLogEntries(prev => [...prev, { kind: 'stream', text: '', key: tcStreamKey }])
+    await generateE2ETestCasesStream(
+      taskId,
+      confirmedPrompt,
+      (chunk) => {
+        setLogEntries(prev => prev.map(entry =>
+          entry.kind === 'stream' && entry.key === tcStreamKey
+            ? { ...entry, text: entry.text + chunk }
+            : entry
+        ))
+      },
+      async () => {
+        setGeneratingTestCases(false)
+        try {
+          const items = await getTestCaseItems(taskId, 'e2e')
+          setE2ETestCaseItems(items)
+          setChatEntries(prev => prev.map((e, i) =>
+            i === streamingEntryIndexRef.current
+              ? { type: 'e2e_test_cases_ready', items, approved: false }
+              : e
+          ))
+        } catch {
+          setChatEntries(prev => prev.map((e, i) =>
+            i === streamingEntryIndexRef.current
+              ? { type: 'error', message: 'E2Eテストケース取得エラー' }
+              : e
+          ))
+        }
+      },
+      (err) => {
+        setGeneratingTestCases(false)
+        setChatEntries(prev => prev.map((e, i) =>
+          i === streamingEntryIndexRef.current
+            ? { type: 'error', message: `E2Eテストケース生成エラー: ${err}` }
             : e
         ))
       }
@@ -1406,6 +1595,64 @@ export default function TaskDetail() {
           </div>
         )
 
+      case 'e2e_test_cases_generating':
+        return (
+          <div key={idx} style={{
+            background: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
+            padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
+            display: 'flex', alignItems: 'center', gap: '8px',
+          }}>
+            <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
+            E2Eテストケースを生成しています...
+          </div>
+        )
+
+      case 'e2e_test_cases_ready':
+        return (
+          <div key={idx} style={{
+            background: '#0f172a',
+            border: `1px solid ${entry.approved ? '#334155' : '#06b6d4'}`,
+            borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
+          }}>
+            <div style={{ color: '#06b6d4', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
+              E2Eテストケース {entry.approved ? '(承認済み)' : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
+            </div>
+            {entry.items.length === 0 ? (
+              <div style={{ color: '#475569', fontSize: '0.82rem' }}>
+                E2Eテストケースがまだ生成されていません
+                {confirmedPrompt && task?.status !== 'idle' && (
+                  <span style={{ display: 'block', fontSize: '0.78rem', color: '#ef4444', marginTop: '4px' }}>
+                    タスクのコンテナが起動していません（ステータス: {task?.status}）
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', maxHeight: '200px', overflowY: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #334155', background: '#0a0f1e' }}>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600, whiteSpace: 'nowrap' }}>ID</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600, whiteSpace: 'nowrap' }}>対象画面</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600 }}>テスト項目</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600 }}>期待出力</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entry.items.map((tc) => (
+                      <tr key={tc.id} style={{ borderBottom: '1px solid #1e293b' }}>
+                        <td style={{ padding: '3px 6px', color: '#94a3b8', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{tc.tc_id}</td>
+                        <td style={{ padding: '3px 6px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{tc.target_screen ?? '—'}</td>
+                        <td style={{ padding: '3px 6px', color: '#cbd5e1' }}>{tc.test_item}</td>
+                        <td style={{ padding: '3px 6px', color: '#94a3b8', fontSize: '0.72rem' }}>{tc.expected_output ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )
+
       case 'test_running':
         return (
           <div key={idx} style={{
@@ -1718,6 +1965,82 @@ export default function TaskDetail() {
       )
     }
 
+    // --- e2e_test step selected ---
+    if (effectiveStep === 'e2e_test') {
+      const lastUnapprovedE2ETC = chatEntries.reduce<(ChatEntry & { type: 'e2e_test_cases_ready' }) | null>(
+        (last, e) => e.type === 'e2e_test_cases_ready' && !e.approved
+          ? e as ChatEntry & { type: 'e2e_test_cases_ready' }
+          : last,
+        null
+      )
+
+      if (lastUnapprovedE2ETC) {
+        const e2eItems = lastUnapprovedE2ETC.items
+        if (e2eItems.length === 0) {
+          return (
+            <div className="instruction-footer" style={{ margin: 0 }}>
+              {confirmedPrompt && task?.status === 'idle' ? (
+                <button className="btn-primary" onClick={handleGenerateE2ETestCasesManual} disabled={isBusy}>
+                  {generatingTestCases ? 'E2Eテストケース生成中...' : 'E2Eテストケースを生成'}
+                </button>
+              ) : (
+                <span style={{ fontSize: '0.82rem', color: '#475569' }}>
+                  {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : 'E2Eテストケースを生成できません'}
+                </span>
+              )}
+            </div>
+          )
+        }
+        return (
+          <div className="instruction-footer" style={{ margin: 0 }}>
+            <button className="btn-primary" onClick={() => handleApproveE2ETestCases(e2eItems)} disabled={isBusy}>
+              {runningTests ? 'E2Eテスト実行中...' : '承認してE2Eテスト実行'}
+            </button>
+            <button className="btn-secondary" onClick={handleGenerateE2ETestCasesManual} disabled={isBusy}>
+              修正を依頼
+            </button>
+          </div>
+        )
+      }
+
+      // All approved or initial load
+      const latestE2ETC = chatEntries.reduce<(ChatEntry & { type: 'e2e_test_cases_ready' }) | null>(
+        (last, e) => e.type === 'e2e_test_cases_ready'
+          ? e as ChatEntry & { type: 'e2e_test_cases_ready' }
+          : last,
+        null
+      )
+      if (latestE2ETC && latestE2ETC.items.length > 0) {
+        return (
+          <div className="instruction-footer" style={{ margin: 0 }}>
+            <button className="btn-primary" onClick={() => handleApproveE2ETestCases(latestE2ETC.items)} disabled={isBusy}>
+              {runningTests ? 'E2Eテスト実行中...' : 'E2Eテストを再実行'}
+            </button>
+            {confirmedPrompt && task?.status === 'idle' && (
+              <button className="btn-secondary" onClick={handleGenerateE2ETestCasesManual} disabled={isBusy}>
+                {generatingTestCases ? 'E2Eテストケース生成中...' : 'E2Eテストケースを再生成'}
+              </button>
+            )}
+          </div>
+        )
+      }
+
+      // No E2E test cases yet
+      return (
+        <div className="instruction-footer" style={{ margin: 0 }}>
+          {confirmedPrompt && task?.status === 'idle' ? (
+            <button className="btn-primary" onClick={handleGenerateE2ETestCasesManual} disabled={isBusy}>
+              {generatingTestCases ? 'E2Eテストケース生成中...' : 'E2Eテストケースを生成'}
+            </button>
+          ) : (
+            <span style={{ fontSize: '0.82rem', color: '#475569' }}>
+              {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : '先に結合テストを完了してください'}
+            </span>
+          )}
+        </div>
+      )
+    }
+
     // --- review step selected ---
     if (effectiveStep === 'review') {
       if (lastUnresolvedReview) {
@@ -1754,7 +2077,7 @@ export default function TaskDetail() {
     }
 
     // ── 単体テスト・結合テスト・実装確認フェーズ ──
-    if (selectedStep === 'unit_test' || selectedStep === 'integration_test' || selectedStep === 'review') {
+    if (selectedStep === 'unit_test' || selectedStep === 'integration_test' || selectedStep === 'e2e_test' || selectedStep === 'review') {
       return (
         <div style={wrapperStyle}>
           <textarea

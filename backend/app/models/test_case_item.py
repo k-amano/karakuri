@@ -37,5 +37,10 @@ class TestCaseItem(Base):
 
     @property
     def tc_id(self) -> str:
-        prefix = "ITC" if self.test_type == TestType.INTEGRATION else "TC"
+        if self.test_type == TestType.INTEGRATION:
+            prefix = "ITC"
+        elif self.test_type == TestType.E2E:
+            prefix = "E2E"
+        else:
+            prefix = "TC"
         return f"{prefix}-{self.seq_no:03d}"

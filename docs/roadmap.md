@@ -158,17 +158,24 @@
 
 ---
 
-## フェーズ3: E2E テスト（Playwright）
+## ~~フェーズ3: E2E テスト（Playwright）~~ ✅ 対応済み（2026-04-30）
 
 **バックエンド:**
-- `claude_service.py` に `run_e2e_tests()` を追加
+- `claude_service.py` に `run_e2e_tests()` と E2E 専用の `generate_test_cases(TestType.E2E)` を追加
   - `TestType.E2E` で `TestRun` を作成
-  - Playwright のスクリーンショットを自動修正フィードバックに含める
-  - テストレポートにスクリーンショットのパスを記録
+  - `tc_id` プロパティが `E2E-NNN` 形式で生成されるよう `test_case_item.py` を更新
+  - Playwright プロンプト: ヘッドレスモードでブラウザ起動、スクリーンショットを `/workspace/repo/test-reports/screenshots/` に保存
+  - 結果ファイルを `/tmp/xolvien_e2e_results.jsonl` で管理
+  - `instructions.py` に `POST /generate-e2e-test-cases` と `POST /run-e2e-tests` エンドポイントを追加
+  - `schemas/instruction.py` に `RunE2ETestsRequest` を追加
 
 **フロントエンド:**
-- ステップバーの「E2Eテスト」ステップをアクティブ化
-- E2E テスト結果にスクリーンショットプレビューを表示
+- ステップバーの「E2Eテスト」ステップをアクティブ化（`future: true` を削除）
+- `api.ts` に `generateE2ETestCasesStream()` / `runE2ETestsStream()` を追加
+- `ChatEntry` 型に `e2e_test_cases_generating` / `e2e_test_cases_ready` を追加（シアン色 `#06b6d4`）
+- 結合テスト合格後 → E2Eテストステップへ自動遷移、E2E合格後 → 実装確認へ遷移
+- セッション再開時に E2E テストケースと実行結果を DB から復元
+- E2Eテストケースの生成→確認→承認→実行の独立フローを追加
 
 ---
 

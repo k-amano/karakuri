@@ -96,7 +96,7 @@ export async function getTestRuns(taskId: number): Promise<TestRun[]> {
   return res.data
 }
 
-export async function getTestCaseItems(taskId: number, testType?: 'unit' | 'integration'): Promise<TestCaseItem[]> {
+export async function getTestCaseItems(taskId: number, testType?: 'unit' | 'integration' | 'e2e'): Promise<TestCaseItem[]> {
   const params = testType ? { test_type: testType } : {}
   const res = await apiClient.get<TestCaseItem[]>(`/api/v1/tasks/${taskId}/test-cases`, { params })
   return res.data
@@ -359,6 +359,96 @@ export async function runIntegrationTestsStream(
   try {
     const response = await fetch(
       `/api/v1/tasks/${taskId}/instructions/run-integration-tests`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${AUTH_TOKEN}`,
+        },
+        body: JSON.stringify({ implementation_prompt: implementationPrompt }),
+      }
+    )
+
+    if (!response.ok) {
+      const text = await response.text()
+      onError(`HTTP ${response.status}: ${text}`)
+      return
+    }
+
+    if (!response.body) {
+      onError('No response body')
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      if (chunk) onChunk(chunk)
+    }
+    onDone()
+  } catch (err) {
+    onError(err instanceof Error ? err.message : String(err))
+  }
+}
+
+export async function generateE2ETestCasesStream(
+  taskId: number,
+  implementationPrompt: string,
+  onChunk: (text: string) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+): Promise<void> {
+  try {
+    const response = await fetch(
+      `/api/v1/tasks/${taskId}/instructions/generate-e2e-test-cases`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${AUTH_TOKEN}`,
+        },
+        body: JSON.stringify({ implementation_prompt: implementationPrompt }),
+      }
+    )
+
+    if (!response.ok) {
+      const text = await response.text()
+      onError(`HTTP ${response.status}: ${text}`)
+      return
+    }
+
+    if (!response.body) {
+      onError('No response body')
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      if (chunk) onChunk(chunk)
+    }
+    onDone()
+  } catch (err) {
+    onError(err instanceof Error ? err.message : String(err))
+  }
+}
+
+export async function runE2ETestsStream(
+  taskId: number,
+  implementationPrompt: string,
+  onChunk: (text: string) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+): Promise<void> {
+  try {
+    const response = await fetch(
+      `/api/v1/tasks/${taskId}/instructions/run-e2e-tests`,
       {
         method: 'POST',
         headers: {

@@ -450,7 +450,13 @@ README:
             raise ValueError("Task has no container")
 
         is_integration = test_type == TestType.INTEGRATION
-        tag = "[ITEST]" if is_integration else "[TEST]"
+        is_e2e = test_type == TestType.E2E
+        if is_e2e:
+            tag = "[E2E]"
+        elif is_integration:
+            tag = "[ITEST]"
+        else:
+            tag = "[TEST]"
 
         _, file_list, _ = self.docker_service.execute_command(
             task.container_id,
@@ -458,7 +464,51 @@ README:
             "/workspace",
         )
 
-        if is_integration:
+        if is_e2e:
+            prompt = f"""あなたはE2Eテスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、Playwright E2Eテストケース一覧を生成してください。
+
+## E2Eテストとは何か（重要）
+
+**E2Eテストはブラウザを通じたユーザーシナリオのテストです。** 以下の特徴を守ってください：
+
+- 単体テスト: 個別の関数・コンポーネント単体の動作
+- 結合テスト: HTTP APIレベルのリクエスト/レスポンスと複数コンポーネントの連携
+- **E2Eテスト: ブラウザを起動し、実際のUIを操作するシナリオテスト**
+  - ページを開く → UI要素を操作（クリック、入力）→ 画面に表示される結果を確認
+  - ユーザー登録・ログイン・ログアウトのフロー全体
+  - フォーム送信 → 画面遷移 → 成功/エラーメッセージの確認
+  - 一覧表示 → 詳細ページ遷移 → 編集・削除などのCRUDフロー
+
+## 実装予定の内容
+{implementation_prompt}
+
+## プロジェクトのファイル一覧
+{file_list.strip()}
+
+## 出力形式（必ずこの形式のみを出力すること）
+
+```json
+[
+  {{
+    "seq_no": 1,
+    "target_screen": "対象画面またはシナリオ名（例: ログインページ、商品一覧→詳細遷移）",
+    "test_item": "テスト項目の名称",
+    "operation": "ブラウザでの具体的な操作手順（例: http://localhost:3000/login を開き、メールに \\"test@example.com\\" を入力し、パスワードに \\"password123\\" を入力してログインボタンをクリックする）",
+    "expected_output": "期待されるUI上の結果（例: ダッシュボードページに遷移し、\\"ようこそ test@example.com\\" と表示される）",
+    "function_name": "test_e2e001_短い説明（英数字とアンダースコアのみ）"
+  }}
+]
+```
+
+## 注意事項
+- **必ずブラウザUI操作レベルのテストを設計すること**（APIの直接呼び出しはE2Eテストではない）
+- **具体的なURL、入力値、クリック対象、表示内容を記述すること**
+- 主要なユーザーシナリオを中心に **8〜12件程度**
+- function_name は `test_e2e{{seq_no:03d}}_` で始まる英数字・アンダースコアのみの関数名にすること
+- JSON以外のテキスト（説明文・Markdownの見出し等）は出力しないこと
+- テストコードは生成しないこと（テストケース定義のみ）
+"""
+        elif is_integration:
             prompt = f"""あなたは結合テスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、結合テストケース一覧を生成してください。
 
 ## 結合テストとは何か（重要）
@@ -664,6 +714,16 @@ README:
         async for chunk in self._run_tests(db, task_id, implementation_prompt, TestType.INTEGRATION):
             yield chunk
 
+    async def run_e2e_tests(
+        self,
+        db: AsyncSession,
+        task_id: int,
+        implementation_prompt: str,
+    ) -> AsyncGenerator[str, None]:
+        """Generate Playwright E2E test code, run tests with screenshots, auto-fix up to 3 times."""
+        async for chunk in self._run_tests(db, task_id, implementation_prompt, TestType.E2E):
+            yield chunk
+
     async def _run_tests(
         self,
         db: AsyncSession,
@@ -672,15 +732,27 @@ README:
         test_type: TestType,
     ) -> AsyncGenerator[str, None]:
         """
-        Shared implementation for unit and integration tests.
+        Shared implementation for unit, integration, and E2E tests.
         Generates test code, executes tests, auto-fixes up to 3 times.
         Saves TestRun and TestCaseResult records. Streams progress logs.
         """
         is_integration = test_type == TestType.INTEGRATION
-        tag = "[ITEST]" if is_integration else "[TEST]"
-        report_suffix = "integration" if is_integration else "unit"
-        report_title = "結合テスト" if is_integration else "単体テスト"
-        commit_prefix = "test(integration)" if is_integration else "test"
+        is_e2e = test_type == TestType.E2E
+        if is_e2e:
+            tag = "[E2E]"
+            report_suffix = "e2e"
+            report_title = "E2Eテスト"
+            commit_prefix = "test(e2e)"
+        elif is_integration:
+            tag = "[ITEST]"
+            report_suffix = "integration"
+            report_title = "結合テスト"
+            commit_prefix = "test(integration)"
+        else:
+            tag = "[TEST]"
+            report_suffix = "unit"
+            report_title = "単体テスト"
+            commit_prefix = "test"
 
         result = await db.execute(sa_select(Task).where(Task.id == task_id))
         task = result.scalar_one_or_none()
@@ -728,8 +800,15 @@ README:
             "/workspace",
         )
 
-        tc_id_example = "ITC-001" if is_integration else "TC-001"
-        tc_func_example = "test_itc001_xxx" if is_integration else "test_tc001_xxx"
+        if is_e2e:
+            tc_id_example = "E2E-001"
+            tc_func_example = "test_e2e001_xxx"
+        elif is_integration:
+            tc_id_example = "ITC-001"
+            tc_func_example = "test_itc001_xxx"
+        else:
+            tc_id_example = "TC-001"
+            tc_func_example = "test_tc001_xxx"
         xolvien_result_instruction = f"""
    **重要: 各テストケースは必ず以下のパターンで実際の出力値を `console.log` で出力すること**
 
@@ -751,7 +830,47 @@ README:
        assert actual == /* 期待値 */
    ```"""
 
-        if is_integration:
+        if is_e2e:
+            gen_prompt = f"""あなたはPlaywrightを使ったE2Eテストコード生成の専門家です。以下の手順をすべて実行してください。
+
+## 実装内容
+{implementation_prompt}
+
+## 承認済みテストケース一覧
+各テストケースの function_name で関数を生成し、操作と期待出力に基づいてテストコードを書いてください。
+
+{tc_summary}
+
+## プロジェクトのファイル一覧
+{file_list.strip()}
+
+## 実行手順（順番通りに行うこと）
+
+1. `package.json` や `pyproject.toml`、`requirements*.txt` を読み込み、アプリの起動方法を特定してください
+2. **Playwright をインストールしてください**
+   - Node.js の場合: `npm install --save-dev @playwright/test` または `npm install --save-dev playwright`
+   - Python の場合: `pip install playwright && playwright install chromium`
+3. **アプリをバックグラウンドで起動してください**
+   - Node.js の場合: `npm start &` または `npm run dev &` などでサーバーを起動し、`curl` でヘルスチェックすること
+   - Python の場合: `uvicorn app:app &` や `flask run &` などで起動すること
+4. Playwright テストファイルを作成してください
+   - 各テストケースの function_name に対応したテスト関数を生成すること
+   - ブラウザを起動してアプリにアクセスし、操作内容に従ってUIを操作すること
+   - 期待出力を確認する検証（expect）を実装すること
+   - スクリーンショットを各テスト終了時に `/workspace/repo/test-reports/screenshots/` に保存すること
+     例: `await page.screenshot({{ path: '/workspace/repo/test-reports/screenshots/{tc_id_example}.png' }})`
+{xolvien_result_instruction}
+5. テストを実行してください（`npx playwright test` または `python -m pytest --headed=false` 等）
+6. テスト終了後にバックグラウンドで起動したサーバーを停止すること
+
+注意:
+- function_name は変更しないこと（DBでの結果照合に使用する）
+- `XOLVIEN_RESULT:` の出力は `expect/assert` より前に行うこと
+- 記録する `actual` は文字列に変換すること
+- Playwright はヘッドレスモード（`headless: true`）で実行すること
+- スクリーンショット保存ディレクトリは事前に作成すること
+"""
+        elif is_integration:
             gen_prompt = f"""あなたは結合テストコード生成の専門家です。以下の手順をすべて実行してください。
 
 ## 実装内容
@@ -849,7 +968,12 @@ README:
         last_output = ""
         last_error = ""
 
-        results_file = "/tmp/xolvien_itc_results.jsonl" if is_integration else "/tmp/xolvien_tc_results.jsonl"
+        if is_e2e:
+            results_file = "/tmp/xolvien_e2e_results.jsonl"
+        elif is_integration:
+            results_file = "/tmp/xolvien_itc_results.jsonl"
+        else:
+            results_file = "/tmp/xolvien_tc_results.jsonl"
         self.docker_service.execute_command(
             task.container_id,
             f"rm -f {results_file} && touch {results_file} && chmod 777 {results_file}",

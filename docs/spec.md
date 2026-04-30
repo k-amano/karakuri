@@ -1,6 +1,6 @@
 # Xolvien — 現行仕様
 
-**最終更新**: 2026-04-28（結合テスト品質改善）
+**最終更新**: 2026-04-30（E2Eテスト実装）
 
 本書は現時点で実装済みの仕様を記録する。未実装の将来機能は `roadmap.md` に記載する。
 
@@ -85,12 +85,12 @@ PENDING → INITIALIZING → IDLE → RUNNING → TESTING → COMPLETED
 | id | INTEGER PK | |
 | task_id | INTEGER FK | |
 | test_type | ENUM | UNIT / INTEGRATION / E2E（デフォルト: UNIT） |
-| seq_no | INTEGER | テスト種別内の連番（UNIT: TC-001、INTEGRATION: ITC-001） |
-| target_screen | VARCHAR | 対象画面 |
+| seq_no | INTEGER | テスト種別内の連番（UNIT: TC-001、INTEGRATION: ITC-001、E2E: E2E-001） |
+| target_screen | VARCHAR | 対象画面（E2E の場合は対象シナリオ名） |
 | test_item | VARCHAR | テスト項目 |
-| operation | TEXT | 操作方法（具体的入力値を含む） |
+| operation | TEXT | 操作方法（E2E の場合はブラウザ操作手順） |
 | expected_output | TEXT | 期待される具体的出力値 |
-| function_name | VARCHAR | テスト関数名（例: test_tc001_login / test_itc001_api_login） |
+| function_name | VARCHAR | テスト関数名（例: test_tc001_login / test_itc001_api_login / test_e2e001_login_flow） |
 
 **test_case_results**（実行ごとの記録）
 
@@ -152,11 +152,15 @@ POST   /api/v1/tasks/{id}/git/push          ← ストリーミング
 
 # 指示・実行
 POST /api/v1/tasks/{id}/instructions
-POST /api/v1/tasks/{id}/instructions/execute-stream       ← ストリーミング
-POST /api/v1/tasks/{id}/instructions/clarify              ← ストリーミング
-POST /api/v1/tasks/{id}/instructions/generate-prompt      ← ストリーミング
-POST /api/v1/tasks/{id}/instructions/generate-test-cases  ← ストリーミング
-POST /api/v1/tasks/{id}/instructions/run-unit-tests       ← ストリーミング
+POST /api/v1/tasks/{id}/instructions/execute-stream                 ← ストリーミング
+POST /api/v1/tasks/{id}/instructions/clarify                        ← ストリーミング
+POST /api/v1/tasks/{id}/instructions/generate-prompt               ← ストリーミング
+POST /api/v1/tasks/{id}/instructions/generate-test-cases           ← ストリーミング
+POST /api/v1/tasks/{id}/instructions/run-unit-tests                ← ストリーミング
+POST /api/v1/tasks/{id}/instructions/generate-integration-test-cases  ← ストリーミング
+POST /api/v1/tasks/{id}/instructions/run-integration-tests         ← ストリーミング
+POST /api/v1/tasks/{id}/instructions/generate-e2e-test-cases       ← ストリーミング
+POST /api/v1/tasks/{id}/instructions/run-e2e-tests                 ← ストリーミング
 GET  /api/v1/tasks/{id}/instructions
 GET  /api/v1/tasks/{id}/instructions/{instruction_id}
 GET  /api/v1/tasks/{id}/instructions/last-completed
@@ -200,8 +204,13 @@ WS  /api/v1/ws/tasks/{id}/status  ← WebSocket
 11. ユーザーが結合テストケースを確認 → 承認
 12. Claude が結合テストコードを生成 → サーバー＋DB を起動してテスト実行
 13. 失敗した場合は自動修正ループ（最大3回）
-14. ユーザーが実装を確認 → 承認 / 差し戻し
-15. Git Push
+14. 結合テスト合格 → E2Eテストステップへ自動移行
+15. Claude が E2E テストケース一覧（E2E-001 形式）を生成
+16. ユーザーが E2E テストケースを確認 → 承認
+17. Claude が Playwright テストコードを生成 → ヘッドレスブラウザでテスト実行（スクリーンショットあり）
+18. 失敗した場合は自動修正ループ（最大3回）
+19. ユーザーが実装を確認 → 承認 / 差し戻し
+20. Git Push
 ```
 
 ### 4.2 ユーザー確認ポイント
@@ -211,7 +220,8 @@ WS  /api/v1/ws/tasks/{id}/status  ← WebSocket
 | ステップ3 | プロンプトが意図通りか | 実装開始 | 指示を修正して再生成 |
 | ステップ6 | 単体テストケースが網羅的か | 単体テストコード生成・実行 | テストケースを修正して再承認 |
 | ステップ11 | 結合テストケースが網羅的か | 結合テストコード生成・実行 | テストケースを修正して再承認 |
-| ステップ14 | 実装が意図通りか | コミット確定 → 次フェーズ or Push | 指示入力に戻る（前回指示を復元） |
+| ステップ16 | E2Eテストケースが網羅的か | Playwright テストコード生成・実行 | テストケースを修正して再承認 |
+| ステップ19 | 実装が意図通りか | コミット確定 → 次フェーズ or Push | 指示入力に戻る（前回指示を復元） |
 
 ### 4.3 セッション再開
 
@@ -237,21 +247,25 @@ WS  /api/v1/ws/tasks/{id}/status  ← WebSocket
 
 ```
 ChatEntry =
-  | user_instruction      ← ユーザーの指示
-  | clarify_question      ← Claudeの質問
-  | clarify_answer        ← ユーザーの回答
-  | clarify_streaming     ← ストリーミング中
-  | prompt_generating     ← プロンプト生成中
-  | prompt_generated      ← 生成されたプロンプト（confirmed フラグ付き）
+  | user_instruction               ← ユーザーの指示
+  | clarify_question               ← Claudeの質問
+  | clarify_answer                 ← ユーザーの回答
+  | clarify_streaming              ← ストリーミング中
+  | prompt_generating              ← プロンプト生成中
+  | prompt_generated               ← 生成されたプロンプト（confirmed フラグ付き）
   | implementation_running
   | implementation_done
   | test_cases_generating
-  | test_cases_ready      ← テストケース一覧（approved フラグ付き）
+  | test_cases_ready               ← 単体テストケース一覧（approved フラグ付き）
+  | integration_test_cases_generating
+  | integration_test_cases_ready  ← 結合テストケース一覧（approved フラグ付き）
+  | e2e_test_cases_generating
+  | e2e_test_cases_ready          ← E2Eテストケース一覧（approved フラグ付き）
   | test_running
-  | test_done             ← テスト結果サマリー
-  | review                ← 実装確認（resolved フラグ付き）
+  | test_done                      ← テスト結果サマリー
+  | review                         ← 実装確認（resolved フラグ付き）
   | error
-  | info                  ← システム通知
+  | info                           ← システム通知
 ```
 
 入力エリア下部のボタンは `selectedStep`（ステップバーの選択）に応じて切り替わる：
@@ -261,12 +275,13 @@ ChatEntry =
 | implement（または未選択） | 有効（指示入力） | 要件を確認する / スキップしてプロンプトを生成 |
 | implement（未確定プロンプトあり） | 有効（フィードバック入力） | 確定して実行 / 再生成 |
 | unit_test | disabled | テストケースを生成 / 承認してテスト実行 / 修正を依頼 / テストを再実行 / テストケースを再生成 |
-| integration_test | disabled | 結合テストケースを生成 / 承認して結合テスト実行 / 修正を依頼 / 結合テストを再実行 |
+| integration_test | disabled | 結合テストケースを生成 / 承認して結合テスト実行 / 修正を依頼 / 結合テストを再実行 / 結合テストケースを再生成 |
+| e2e_test | disabled | E2Eテストケースを生成 / 承認してE2Eテスト実行 / 修正を依頼 / E2Eテストを再実行 / E2Eテストケースを再生成 |
 | review | disabled | 承認 / 差し戻し |
 
 ### 5.3 ステップバー
 
-操作パネルの上部に常時表示。ステップ：実装 → 単体テスト → 結合テスト → E2Eテスト* → 実装確認
+操作パネルの上部に常時表示。ステップ：実装 → 単体テスト → 結合テスト → E2Eテスト → 実装確認
 
 | 表示色 | 意味 |
 |---|---|
@@ -275,7 +290,6 @@ ChatEntry =
 | 青（太字） | 現在のステップ |
 | 黄色背景・黒テキスト | 選択中（クリックで移動したステップ） |
 | グレー | 未実施 |
-| グレー斜体（\*付き） | 未実装の将来ステップ |
 
 ### 5.4 テストケース確認カードの操作
 
@@ -320,10 +334,11 @@ backend/app/
 | `execute_instruction()` | 任意の指示を Claude Agent で実行。AsyncGenerator でログを yield |
 | `clarify_requirements()` | 要件確認 Q&A。不明点を質問、十分な情報が揃ったら終了 |
 | `generate_prompt()` | 簡潔な指示を最適化されたプロンプトに変換 |
-| `generate_test_cases()` | `test_type` 引数により単体（`TC-NNN` / `test_tc001_`）または結合（`ITC-NNN` / `test_itc001_`）のテストケースを生成。既存の同 `test_type` の TC のみ削除して保存（他種別は保持） |
+| `generate_test_cases()` | `test_type` 引数により単体（`TC-NNN` / `test_tc001_`）・結合（`ITC-NNN` / `test_itc001_`）・E2E（`E2E-NNN` / `test_e2e001_`）のテストケースを生成。既存の同 `test_type` の TC のみ削除して保存（他種別は保持） |
 | `run_unit_tests()` | `_run_tests()` に `TestType.UNIT` を渡すラッパー |
 | `run_integration_tests()` | `_run_tests()` に `TestType.INTEGRATION` を渡すラッパー |
-| `_run_tests()` | テストコード生成 → 実行 → 自動修正ループ（最大3回）の共通実装。`TestType` により単体・結合を切り替え。EACCES 等のインフラエラーは即中断 |
+| `run_e2e_tests()` | `_run_tests()` に `TestType.E2E` を渡すラッパー |
+| `_run_tests()` | テストコード生成 → 実行 → 自動修正ループ（最大3回）の共通実装。`TestType` により単体・結合・E2E を切り替え。EACCES 等のインフラエラーは即中断 |
 | `_detect_test_command()` | `package.json` を優先チェックし、次に `pyproject.toml` / `setup.py` で Python を判定。pytest の実インストールも確認 |
 | `_extract_result_for_function()` | Jest（`--verbose` の `✓/✕ TC-xxx:` 行）と pytest verbose（`PASSED/FAILED` 行）の両フォーマットに対応して verdict を判定 |
 
@@ -339,7 +354,7 @@ backend/app/
 
 - `_detect_test_command()` が `package.json`（Node.js）→ `pyproject.toml` / `setup.py`（Python）の順に判定。`requirements.txt` 単独では Python とみなさない
 - Node.js プロジェクトは `npm test -- --watchAll=false --verbose 2>&1`、Python は `python -m pytest -v 2>&1` を実行
-- テスト実行前にバックエンドが `/tmp/xolvien_tc_results.jsonl`（単体テスト）または `/tmp/xolvien_itc_results.jsonl`（結合テスト）を `chmod 777` で作成。テストコードは `console.log('XOLVIEN_RESULT:{"tc_id":"TC-001","actual":"..."}')` または `ITC-001` 形式で実際の出力値を記録
+- テスト実行前にバックエンドが JSONL ファイル（単体: `/tmp/xolvien_tc_results.jsonl`、結合: `/tmp/xolvien_itc_results.jsonl`、E2E: `/tmp/xolvien_e2e_results.jsonl`）を `chmod 777` で作成。テストコードは `console.log('XOLVIEN_RESULT:{"tc_id":"TC-001","actual":"..."}')` / `ITC-001` / `E2E-001` 形式で実際の出力値を記録
 - バックエンドはテスト出力の `XOLVIEN_RESULT:` 行をパースして `test_case_results.actual_output` に保存
 - `test_run.summary` は `test_case_results` の verdict 集計から生成（テスト関数数ではなく TC 件数ベース）
 - 自動修正ループ（最大3回）：修正プロンプトには「修正のみ行うこと、テストの再実行は不要」と指示してバックエンド側でテストを再実行
@@ -354,7 +369,20 @@ backend/app/
 - テストコード生成プロンプトにサーバー起動手順（supertest / pytest + httpx）と HTTP リクエスト経由のテストパターンを追加指示
 - 単体テストとは独立した結合テスト専用の `test_case_items`（`test_type=INTEGRATION`）を使用
 - テスト結果は同じ `test_case_results` テーブルに `test_run_id` で紐付けて保存
-- `GET /test-cases?test_type=unit|integration` でフィルタリング可能
+- `GET /test-cases?test_type=unit|integration|e2e` でフィルタリング可能
+
+**E2Eテスト固有の動作**
+
+- `TestType.E2E` では `[E2E]` タグでログを出力
+- テストケース生成プロンプトはE2E専用（ブラウザ操作シナリオを検証。`E2E-NNN` / `test_e2e001_` 形式）
+  - 具体的なURL・クリック操作・入力値・画面上の期待表示を必須記述
+  - 8〜12件程度のユーザーシナリオを中心に生成
+- テストコード生成プロンプトに Playwright 固有の指示を追加
+  - `npm install --save-dev @playwright/test` または `pip install playwright && playwright install chromium` を実行
+  - アプリをバックグラウンドで起動してから Playwright テストを実行
+  - ヘッドレスモード（`headless: true`）で実行
+  - 各テスト終了時に `/workspace/repo/test-reports/screenshots/{E2E-NNN}.png` としてスクリーンショットを保存
+- 他のテスト種別と独立した E2E 専用の `test_case_items`（`test_type=E2E`）を使用
 
 ### 6.5 設計上の決定事項
 

@@ -2,6 +2,49 @@
 
 ---
 
+## 2026-04-30
+
+### フェーズ3: E2Eテスト（Playwright）
+
+**変更内容:**
+
+- バックエンド `claude_service.py`：`run_e2e_tests()` メソッドを追加
+  - `_run_tests()` に `TestType.E2E` を渡すラッパー
+  - `generate_test_cases(TestType.E2E)` でテストケース ID を `E2E-NNN`、関数名を `test_e2e001_` 形式で生成
+  - E2E テストコード生成プロンプトを追加：Playwright のインストール、アプリのバックグラウンド起動、ヘッドレスモード実行、スクリーンショットを `/workspace/repo/test-reports/screenshots/` に保存する指示を含む
+  - 結果ファイルを `/tmp/xolvien_e2e_results.jsonl` で管理（単体・結合と独立）
+  - `[E2E]` タグでログを出力
+
+- バックエンド `claude_service.py`：`generate_test_cases()` のE2E対応
+  - E2E専用テストケース生成プロンプトを追加：ブラウザ操作シナリオ（URL・クリック・入力・期待表示）を具体的に記述させる指示。8〜12件程度
+  - `_run_tests()` / `generate_test_cases()` 内の `is_integration` 単純二値分岐を `test_type` 直接参照に変更し、UNIT / INTEGRATION / E2E の三値を正しく処理
+
+- バックエンド `models/test_case_item.py`：`tc_id` プロパティに `E2E` タイプを追加（`E2E-NNN` 形式）
+
+- バックエンド `schemas/instruction.py`：`RunE2ETestsRequest` を追加
+
+- バックエンド `api/instructions.py`：E2Eエンドポイントを追加
+  - `POST /generate-e2e-test-cases`（ストリーミング）
+  - `POST /run-e2e-tests`（ストリーミング）
+
+- フロントエンド `services/api.ts`：E2E APIクライアント関数を追加
+  - `generateE2ETestCasesStream()`
+  - `runE2ETestsStream()`
+  - `getTestCaseItems()` の型引数に `'e2e'` を追加
+
+- フロントエンド `pages/TaskDetail.tsx`：E2Eテストフローを実装
+  - `ChatEntry` 型に `e2e_test_cases_generating` / `e2e_test_cases_ready` を追加（シアン `#06b6d4` 配色）
+  - ステップバーの「E2Eテスト」から `future: true` フラグを削除してアクティブ化
+  - セッション復元時に E2E テストケース（`getTestCaseItems(taskId, 'e2e')`）と最新 E2E TestRun を DB から取得して復元
+  - ステップ遷移を更新：結合テスト合格 → E2Eテストへ自動遷移、E2Eテスト合格 → 実装確認へ遷移
+  - `handleApproveE2ETestCases()` / `handleGenerateE2ETestCasesManual()` ハンドラを追加
+  - `renderActionButtons()` に E2Eテストステップ用のボタン群を追加
+  - `renderInputArea()` の disabled 条件に `e2e_test` を追加
+
+- ドキュメント `docs/spec.md`・`docs/roadmap.md` を更新
+
+---
+
 ## 2026-04-28
 
 ### 結合テスト品質改善・バグ修正
