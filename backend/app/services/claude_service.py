@@ -642,6 +642,28 @@ README:
         except json.JSONDecodeError:
             return []
 
+    def _detect_e2e_test_command(self, container_id: str) -> str | None:
+        """Detect Playwright config and return the appropriate E2E test command."""
+        _, config_check, _ = self.docker_service.execute_command(
+            container_id,
+            "ls /workspace/repo/playwright.config.js /workspace/repo/playwright.config.ts 2>/dev/null | head -1 || echo ''",
+            "/workspace/repo",
+        )
+        if config_check.strip():
+            return "npx playwright test --reporter=line 2>&1"
+
+        # Python Playwright fallback
+        _, py_playwright, _ = self.docker_service.execute_command(
+            container_id,
+            "python -c 'import playwright' 2>/dev/null && echo 'ok' || echo ''",
+            "/workspace/repo",
+        )
+        if py_playwright.strip() == "ok":
+            return "python -m pytest tests/e2e/ -v 2>&1"
+
+        # No Playwright config yet — it will be created by the code generation step
+        return "npx playwright test --reporter=line 2>&1"
+
     def _detect_test_command(self, container_id: str) -> str | None:
         """
         Detect the test command from the project structure.
@@ -847,28 +869,52 @@ README:
 ## 実行手順（順番通りに行うこと）
 
 1. `package.json` や `pyproject.toml`、`requirements*.txt` を読み込み、アプリの起動方法を特定してください
-2. **Playwright をインストールしてください**
-   - Node.js の場合: `npm install --save-dev @playwright/test` または `npm install --save-dev playwright`
-   - Python の場合: `pip install playwright && playwright install chromium`
-3. **アプリをバックグラウンドで起動してください**
+2. **@playwright/test をインストールしてください**
+   - Node.js の場合: `npm install --save-dev @playwright/test && npx playwright install chromium`
+   - Python の場合: `pip install pytest-playwright && playwright install chromium`
+3. **`playwright.config.js` を作成してください（Node.js の場合）**
+   ```javascript
+   // playwright.config.js
+   const {{ defineConfig }} = require('@playwright/test');
+   module.exports = defineConfig({{
+     testDir: './e2e',
+     use: {{ headless: true, baseURL: 'http://localhost:3000' }},
+   }});
+   ```
+   ポート番号はアプリの実際の起動ポートに合わせること。
+4. **アプリをバックグラウンドで起動してください**
    - Node.js の場合: `npm start &` または `npm run dev &` などでサーバーを起動し、`curl` でヘルスチェックすること
    - Python の場合: `uvicorn app:app &` や `flask run &` などで起動すること
-4. Playwright テストファイルを作成してください
-   - 各テストケースの function_name に対応したテスト関数を生成すること
-   - ブラウザを起動してアプリにアクセスし、操作内容に従ってUIを操作すること
-   - 期待出力を確認する検証（expect）を実装すること
-   - スクリーンショットを各テスト終了時に `/workspace/repo/test-reports/screenshots/` に保存すること
-     例: `await page.screenshot({{ path: '/workspace/repo/test-reports/screenshots/{tc_id_example}.png' }})`
-{xolvien_result_instruction}
-5. テストを実行してください（`npx playwright test` または `python -m pytest --headed=false` 等）
-6. テスト終了後にバックグラウンドで起動したサーバーを停止すること
+5. **E2E テストファイルを `e2e/` ディレクトリに作成してください（Node.js の場合: `e2e/tests.spec.js`）**
+   - `@playwright/test` の `test` / `expect` を使い、**Jest の `test()` は使わないこと**
+   - 各テストケースの function_name に対応したテスト名を設定すること
+   - 各テストの先頭で `console.log('XOLVIEN_RESULT:' + JSON.stringify({{tc_id: 'E2E-001', actual: 'actual value'}}))` を出力すること
+
+   **Node.js Playwright の例:**
+   ```javascript
+   const {{ test, expect }} = require('@playwright/test');
+
+   test('{tc_id_example}: テスト名', async ({{ page }}) => {{
+     await page.goto('/');
+     const text = await page.textContent('h1');
+     console.log('XOLVIEN_RESULT:' + JSON.stringify({{tc_id: '{tc_id_example}', actual: String(text)}}));
+     await page.screenshot({{ path: '/workspace/repo/test-reports/screenshots/{tc_id_example}.png' }});
+     await expect(page.locator('h1')).toHaveText('期待するテキスト');
+   }});
+   ```
+
+   - `XOLVIEN_RESULT:` の出力は `expect` より前に行うこと
+   - スクリーンショットを各テスト終了前に `/workspace/repo/test-reports/screenshots/` に保存すること
+   - Playwright はヘッドレスモード（`headless: true`）で実行すること
+   - スクリーンショット保存ディレクトリは事前に `mkdir -p` で作成すること
+6. テストを実行してください: `npx playwright test --reporter=line`
+7. テスト終了後にバックグラウンドで起動したサーバーを停止すること
 
 注意:
 - function_name は変更しないこと（DBでの結果照合に使用する）
-- `XOLVIEN_RESULT:` の出力は `expect/assert` より前に行うこと
 - 記録する `actual` は文字列に変換すること
-- Playwright はヘッドレスモード（`headless: true`）で実行すること
-- スクリーンショット保存ディレクトリは事前に作成すること
+- **Jest を使わないこと。`@playwright/test` の `test()` のみ使用すること**
+- `testPathIgnorePatterns` など Jest の設定を変更しないこと
 """
         elif is_integration:
             gen_prompt = f"""あなたは結合テストコード生成の専門家です。以下の手順をすべて実行してください。
@@ -945,7 +991,10 @@ README:
         ):
             yield chunk
 
-        test_command = self._detect_test_command(task.container_id)
+        if is_e2e:
+            test_command = self._detect_e2e_test_command(task.container_id)
+        else:
+            test_command = self._detect_test_command(task.container_id)
         if test_command is None:
             yield f"\n{tag} テストフレームワークが見つかりません。テストコードを確認してください。\n"
             test_run.passed = False
