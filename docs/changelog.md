@@ -2,6 +2,31 @@
 
 ---
 
+## 2026-05-02
+
+### E2Eテスト: verdict「未判定」バグの修正
+
+**変更内容:**
+
+- バックエンド `claude_service.py`：E2E テスト結果が全件「未判定」になる問題を修正
+  - **原因1**: `_detect_test_command()` が Node.js プロジェクトに対して `npm test`（Jest）を返していたため、Jest が Playwright テストファイルを実行しようとして失敗・スキップされていた
+  - **原因2**: `--reporter=line` 形式は端末制御コード（`[1A[2K`）のみで `✓`/`✘` を含まないため、`_extract_result_for_function()` が verdict を判定できなかった
+  - **対応1**: `_detect_e2e_test_command()` を新設し、E2E 時は `_detect_test_command()` をバイパスして `npx playwright test --reporter=list 2>&1` を使用
+  - **対応2**: `--reporter=list` に変更（`✓`/`✘` が1テストごとに出力される形式）
+  - **対応3**: `_extract_result_for_function()` に Playwright `--reporter=list` 形式のパターンを追加（`function_name` を含む行で `✓`/`✘` を判定）
+  - **対応4**: `XOLVIEN_RESULT:` が出力された TC は「テストが実行された証拠」として exit_code から verdict を確定。出力されなかった TC は `FAILED` として扱い、「未判定」を終端状態としない
+  - **対応5**: 自動修正プロンプトに禁止事項を追加（`try/catch` で例外を握り潰して成功扱いにすること、`expect` 条件の弱体化を禁止。環境依存の問題は `grantPermissions()` / `page.route()` でモックして正しく検証するよう指示）
+
+- ドキュメント `docs/roadmap.md`：今後の実装予定項目を追加
+  - 日英両言語対応（優先度: 高）
+  - ファイルアップロードによる要件解析
+  - ドキュメント自動生成
+  - 進捗インジケーターの改善
+  - メッセージをいつでも送信可能にする
+  - 例外ハンドリングの改善
+
+---
+
 ## 2026-04-30
 
 ### フェーズ3: E2Eテスト（Playwright）
