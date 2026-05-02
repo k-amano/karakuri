@@ -650,7 +650,7 @@ README:
             "/workspace/repo",
         )
         if config_check.strip():
-            return "npx playwright test --reporter=line 2>&1"
+            return "npx playwright test --reporter=list 2>&1"
 
         # Python Playwright fallback
         _, py_playwright, _ = self.docker_service.execute_command(
@@ -662,7 +662,7 @@ README:
             return "python -m pytest tests/e2e/ -v 2>&1"
 
         # No Playwright config yet — it will be created by the code generation step
-        return "npx playwright test --reporter=line 2>&1"
+        return "npx playwright test --reporter=list 2>&1"
 
     def _detect_test_command(self, container_id: str) -> str | None:
         """
@@ -993,6 +993,9 @@ README:
 
         if is_e2e:
             test_command = self._detect_e2e_test_command(task.container_id)
+            # list reporter outputs ✓/✘ per test, compatible with existing verdict parsing
+            if test_command and "playwright" in test_command:
+                test_command = test_command.replace("--reporter=line", "--reporter=list")
         else:
             test_command = self._detect_test_command(task.container_id)
         if test_command is None:
@@ -1055,6 +1058,13 @@ README:
 2. 原因を修正してください（function_name は変更しないこと）
 3. 依存パッケージが不足している場合はインストールしてください
 4. テストの再実行は不要です。修正のみ行ってください
+
+## 絶対に行ってはいけないこと
+- テストが通るようにするためだけに、実装コードの検証ロジックを削除・緩和すること
+  （例: `try/catch` で例外を握り潰して成功扱いにする、常に `true` を返すフォールバックを追加する）
+- `expect` / `assert` の条件を弱める・削除すること
+- クリップボード・通知・外部API 等の環境依存で失敗する場合は、
+  Playwright の `browserContext.grantPermissions()` や `page.route()` でモックして正しく検証すること
 """
                 self._write_text_to_container(task.container_id, "/tmp/xolvien_prompt.txt", fix_prompt)
                 self._write_text_to_container(task.container_id, "/tmp/xolvien_runner.py", _RUNNER_SCRIPT_AGENT)
@@ -1142,9 +1152,17 @@ README:
         # Save TestCaseResults
         last_combined = (last_output + "\n" + last_error).strip()
         executed_at = datetime.utcnow()
+        final_exit_code = test_run.exit_code or 0
         for tc in tc_items:
             verdict, actual_fallback = self._extract_result_for_function(last_combined, tc.function_name, tc.tc_id)
             actual = actual_by_tc_id.get(tc.tc_id) or actual_fallback
+            # If output-format parsing missed this test but XOLVIEN_RESULT: was emitted,
+            # the test ran — infer verdict from the overall exit code as a last resort.
+            # A test whose result line was not found is still FAILED (not 未判定).
+            if verdict is None and tc.tc_id in actual_by_tc_id:
+                verdict = Verdict.PASSED if final_exit_code == 0 else Verdict.FAILED
+            elif verdict is None:
+                verdict = Verdict.FAILED
             tcr = TestCaseResult(
                 test_case_item_id=tc.id,
                 test_run_id=test_run.id,
@@ -1295,6 +1313,13 @@ README:
                     verdict = Verdict.FAILED
                 elif 'skip' in line.lower() or 'todo' in line.lower():
                     verdict = Verdict.SKIPPED
+
+            # Playwright --reporter=list: "  ✓  N function_name (Xs)" or "  ✘  N function_name"
+            if function_name and function_name in line:
+                if _re.search(r'[✓√✔]', line):
+                    verdict = Verdict.PASSED
+                elif _re.search(r'[✘✗✕×]', line):
+                    verdict = Verdict.FAILED
 
         if verdict is None:
             return None, None
