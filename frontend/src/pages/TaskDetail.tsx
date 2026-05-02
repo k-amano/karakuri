@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import type { Task, TaskLog, TaskStatus, LogLevel } from '../types'
 import { getTask, getLogs, stopTask, executeInstructionStream, generatePromptStream, clarifyStream, gitPushStream, generateTestCasesStream, generateIntegrationTestCasesStream, generateE2ETestCasesStream, runUnitTestsStream, runIntegrationTestsStream, runE2ETestsStream, getTestRuns, getLastCompletedInstruction, getTestCaseItems } from '../services/api'
 import type { TestCaseItem } from '../types'
+import { useLang } from '../i18n'
 
 type ChatEntry =
   | { type: 'user_instruction'; content: string }
@@ -36,10 +37,6 @@ interface StepInfo {
   future?: boolean
 }
 
-
-function getStatusLabel(status: TaskStatus): string {
-  return status
-}
 
 function getStatusClass(status: TaskStatus): string {
   switch (status) {
@@ -89,26 +86,6 @@ function formatLogTimestamp(dateStr: string): string {
   }
 }
 
-function getIdleStatusMessage(status: TaskStatus): string | null {
-  switch (status) {
-    case 'pending':
-    case 'initializing':
-      return 'タスクの準備中...'
-    case 'running':
-      return '実行中です。完了をお待ちください...'
-    case 'testing':
-      return 'テスト中です...'
-    case 'completed':
-      return 'タスクは完了しました。'
-    case 'failed':
-      return 'タスクが失敗しました。'
-    case 'stopped':
-      return 'タスクは停止されました。'
-    default:
-      return null
-  }
-}
-
 // A log entry can be either a structured TaskLog or a stream chunk
 type LogEntry =
   | { kind: 'log'; data: TaskLog }
@@ -119,6 +96,51 @@ export default function TaskDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const taskId = Number(id)
+  const { t, lang, setLang } = useLang()
+
+  function getStatusLabel(status: TaskStatus): string {
+    switch (status) {
+      case 'pending': return t.statusPending
+      case 'initializing': return t.statusInitializing
+      case 'idle': return t.statusIdle
+      case 'running': return t.statusRunning
+      case 'testing': return t.statusTesting
+      case 'completed': return t.statusCompleted
+      case 'failed': return t.statusFailed
+      case 'stopped': return t.statusStopped
+      default: return status
+    }
+  }
+
+  function getIdleStatusMessage(status: TaskStatus): string | null {
+    switch (status) {
+      case 'pending':
+      case 'initializing':
+        return t.msgPreparing
+      case 'running':
+        return t.msgRunning
+      case 'testing':
+        return t.msgTesting
+      case 'completed':
+        return t.msgCompleted
+      case 'failed':
+        return t.msgFailed
+      case 'stopped':
+        return t.msgStopped
+      default:
+        return null
+    }
+  }
+
+  function getStepLabel(stepId: StepId): string {
+    switch (stepId) {
+      case 'implement': return t.stepImplement
+      case 'unit_test': return t.stepUnitTest
+      case 'integration_test': return t.stepIntegrationTest
+      case 'e2e_test': return t.stepE2ETest
+      case 'review': return t.stepReview
+    }
+  }
 
   const [task, setTask] = useState<Task | null>(null)
   const [taskError, setTaskError] = useState<string | null>(null)
@@ -155,11 +177,11 @@ export default function TaskDetail() {
   const [resumeChecked, setResumeChecked] = useState(false)
   const [selectedStep, setSelectedStep] = useState<StepId | null>(null)
   const [steps, setSteps] = useState<StepInfo[]>([
-    { id: 'implement',         label: '実装',       status: 'pending' },
-    { id: 'unit_test',         label: '単体テスト', status: 'pending' },
-    { id: 'integration_test',  label: '結合テスト',   status: 'pending' },
-    { id: 'e2e_test',          label: 'E2Eテスト',   status: 'pending' },
-    { id: 'review',            label: '実装確認',     status: 'pending' },
+    { id: 'implement',        label: '',  status: 'pending' },
+    { id: 'unit_test',        label: '',  status: 'pending' },
+    { id: 'integration_test', label: '',  status: 'pending' },
+    { id: 'e2e_test',         label: '',  status: 'pending' },
+    { id: 'review',           label: '',  status: 'pending' },
   ])
 
   const logViewerRef = useRef<HTMLDivElement>(null)
@@ -339,7 +361,7 @@ export default function TaskDetail() {
       } catch (err) {
         setChatEntries([{
           type: 'error',
-          message: `セッション復元エラー: ${err instanceof Error ? err.message : String(err)}`,
+          message: `${t.sessionRestoreError}${err instanceof Error ? err.message : String(err)}`,
         }])
       }
     }
@@ -373,10 +395,10 @@ export default function TaskDetail() {
       setTaskError(null)
     } catch (err) {
       setTaskError(
-        err instanceof Error ? err.message : 'タスクの取得に失敗しました'
+        err instanceof Error ? err.message : t.fetchTaskFailed
       )
     }
-  }, [taskId])
+  }, [taskId, t])
 
   // Poll task status every 2 seconds
   useEffect(() => {
@@ -498,7 +520,7 @@ export default function TaskDetail() {
         setClarifying(false)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `要件確認エラー: ${err}` }
+            ? { type: 'error', message: `${t.clarifyError}${err}` }
             : e
         ))
       }
@@ -560,7 +582,7 @@ export default function TaskDetail() {
         setClarifying(false)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `要件確認エラー: ${err}` }
+            ? { type: 'error', message: `${t.clarifyError}${err}` }
             : e
         ))
       }
@@ -603,7 +625,7 @@ export default function TaskDetail() {
         setGenerating(false)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `プロンプト生成エラー: ${err}` }
+            ? { type: 'error', message: `${t.promptGenError}${err}` }
             : e
         ))
       }
@@ -639,7 +661,7 @@ export default function TaskDetail() {
         setGenerating(false)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `プロンプト生成エラー: ${err}` }
+            ? { type: 'error', message: `${t.promptGenError}${err}` }
             : e
         ))
       }
@@ -678,7 +700,7 @@ export default function TaskDetail() {
         setGenerating(false)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `再生成エラー: ${err}` }
+            ? { type: 'error', message: `${t.regenerateError}${err}` }
             : e
         ))
       }
@@ -752,7 +774,7 @@ export default function TaskDetail() {
             } catch {
               setChatEntries(prev => prev.map((e, i) =>
                 i === streamingEntryIndexRef.current
-                  ? { type: 'error', message: 'テストケース取得エラー' }
+                  ? { type: 'error', message: t.testCaseFetchError }
                   : e
               ))
             }
@@ -761,7 +783,7 @@ export default function TaskDetail() {
             setGeneratingTestCases(false)
             setChatEntries(prev => prev.map((e, i) =>
               i === streamingEntryIndexRef.current
-                ? { type: 'error', message: `テストケース生成エラー: ${err}` }
+                ? { type: 'error', message: `${t.testCaseGenError}${err}` }
                 : e
             ))
           }
@@ -771,9 +793,9 @@ export default function TaskDetail() {
         setStreaming(false)
         setChatEntries(prev => {
           const idx = [...prev].reverse().findIndex(e => e.type === 'implementation_running')
-          if (idx === -1) return [...prev, { type: 'error', message: `実装エラー: ${err}` }]
+          if (idx === -1) return [...prev, { type: 'error', message: `${t.implError}${err}` }]
           const realIdx = prev.length - 1 - idx
-          return prev.map((e, i) => i === realIdx ? { type: 'error', message: `実装エラー: ${err}` } : e)
+          return prev.map((e, i) => i === realIdx ? { type: 'error', message: `${t.implError}${err}` } : e)
         })
       }
     )
@@ -791,7 +813,7 @@ export default function TaskDetail() {
 
     setChatEntries(prev => {
       streamingEntryIndexRef.current = prev.length
-      return [...prev, { type: 'test_running', label: 'テストコードを生成中' }]
+      return [...prev, { type: 'test_running', label: t.bannerTestGeneratingCode }]
     })
 
     streamKeyRef.current += 1
@@ -812,10 +834,10 @@ export default function TaskDetail() {
         let newLabel: string | null = null
         if (chunk.includes('[TEST] テストを実行しています') || chunk.includes('[TEST] テストを再実行しています')) {
           testCountRef.current = { passed: 0, failed: 0 }
-          newLabel = 'テストを実行中 (0件完了)'
+          newLabel = t.progressRunning(0, 0)
         } else if (chunk.includes('[TEST] 自動修正')) {
           const m = chunk.match(/自動修正 \((\d+)\/(\d+)\)/)
-          newLabel = m ? `自動修正中 ${m[1]}/${m[2]}` : '自動修正中'
+          newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
         } else {
           let updated = false
           for (const line of chunk.split('\n')) {
@@ -834,7 +856,7 @@ export default function TaskDetail() {
           if (updated) {
             const { passed, failed } = testCountRef.current
             const total = passed + failed
-            newLabel = failed > 0 ? `テストを実行中 (${total}件完了 / ${failed}件失敗)` : `テストを実行中 (${total}件完了)`
+            newLabel = t.progressRunning(total, failed)
           }
         }
         if (newLabel) {
@@ -878,7 +900,7 @@ export default function TaskDetail() {
         setTestPhaseLabel(null)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current && e.type === 'test_running'
-            ? { type: 'error', message: `テスト実行エラー: ${err}` }
+            ? { type: 'error', message: `${t.testRunError}${err}` }
             : e
         ))
       }
@@ -897,7 +919,7 @@ export default function TaskDetail() {
 
     setChatEntries(prev => {
       streamingEntryIndexRef.current = prev.length
-      return [...prev, { type: 'test_running', label: '結合テストコードを生成中' }]
+      return [...prev, { type: 'test_running', label: `${t.bannerIntegrationTest}${t.bannerTestGeneratingCode}` }]
     })
 
     streamKeyRef.current += 1
@@ -918,10 +940,10 @@ export default function TaskDetail() {
         let newLabel: string | null = null
         if (chunk.includes('[ITEST] テストを実行しています') || chunk.includes('[ITEST] テストを再実行しています')) {
           testCountRef.current = { passed: 0, failed: 0 }
-          newLabel = '結合テストを実行中 (0件完了)'
+          newLabel = t.progressIntegration(0, 0)
         } else if (chunk.includes('[ITEST] 自動修正')) {
           const m = chunk.match(/自動修正 \((\d+)\/(\d+)\)/)
-          newLabel = m ? `自動修正中 ${m[1]}/${m[2]}` : '自動修正中'
+          newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
         } else {
           let updated = false
           for (const line of chunk.split('\n')) {
@@ -934,7 +956,7 @@ export default function TaskDetail() {
           if (updated) {
             const { passed, failed } = testCountRef.current
             const total = passed + failed
-            newLabel = failed > 0 ? `結合テストを実行中 (${total}件完了 / ${failed}件失敗)` : `結合テストを実行中 (${total}件完了)`
+            newLabel = t.progressIntegration(total, failed)
           }
         }
         if (newLabel) {
@@ -984,7 +1006,7 @@ export default function TaskDetail() {
         setTestPhaseLabel(null)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current && e.type === 'test_running'
-            ? { type: 'error', message: `結合テスト実行エラー: ${err}` }
+            ? { type: 'error', message: `${t.integrationTestRunError}${err}` }
             : e
         ))
       }
@@ -1024,7 +1046,7 @@ export default function TaskDetail() {
         } catch {
           setChatEntries(prev => prev.map((e, i) =>
             i === streamingEntryIndexRef.current
-              ? { type: 'error', message: 'テストケース取得エラー' }
+              ? { type: 'error', message: t.testCaseFetchError }
               : e
           ))
         }
@@ -1033,7 +1055,7 @@ export default function TaskDetail() {
         setGeneratingTestCases(false)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `テストケース生成エラー: ${err}` }
+            ? { type: 'error', message: `${t.testCaseGenError}${err}` }
             : e
         ))
       }
@@ -1073,7 +1095,7 @@ export default function TaskDetail() {
         } catch {
           setChatEntries(prev => prev.map((e, i) =>
             i === streamingEntryIndexRef.current
-              ? { type: 'error', message: '結合テストケース取得エラー' }
+              ? { type: 'error', message: t.integrationTCFetchError }
               : e
           ))
         }
@@ -1082,7 +1104,7 @@ export default function TaskDetail() {
         setGeneratingTestCases(false)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `結合テストケース生成エラー: ${err}` }
+            ? { type: 'error', message: `${t.integrationTCGenError}${err}` }
             : e
         ))
       }
@@ -1101,7 +1123,7 @@ export default function TaskDetail() {
 
     setChatEntries(prev => {
       streamingEntryIndexRef.current = prev.length
-      return [...prev, { type: 'test_running', label: 'E2Eテストコードを生成中' }]
+      return [...prev, { type: 'test_running', label: `${t.bannerE2ETest}${t.bannerTestGeneratingCode}` }]
     })
 
     streamKeyRef.current += 1
@@ -1122,10 +1144,10 @@ export default function TaskDetail() {
         let newLabel: string | null = null
         if (chunk.includes('[E2E] テストを実行しています') || chunk.includes('[E2E] テストを再実行しています')) {
           testCountRef.current = { passed: 0, failed: 0 }
-          newLabel = 'E2Eテストを実行中 (0件完了)'
+          newLabel = t.progressE2E(0, 0)
         } else if (chunk.includes('[E2E] 自動修正')) {
           const m = chunk.match(/自動修正 \((\d+)\/(\d+)\)/)
-          newLabel = m ? `自動修正中 ${m[1]}/${m[2]}` : '自動修正中'
+          newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
         } else {
           let updated = false
           for (const line of chunk.split('\n')) {
@@ -1138,7 +1160,7 @@ export default function TaskDetail() {
           if (updated) {
             const { passed, failed } = testCountRef.current
             const total = passed + failed
-            newLabel = failed > 0 ? `E2Eテストを実行中 (${total}件完了 / ${failed}件失敗)` : `E2Eテストを実行中 (${total}件完了)`
+            newLabel = t.progressE2E(total, failed)
           }
         }
         if (newLabel) {
@@ -1188,7 +1210,7 @@ export default function TaskDetail() {
         setTestPhaseLabel(null)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current && e.type === 'test_running'
-            ? { type: 'error', message: `E2Eテスト実行エラー: ${err}` }
+            ? { type: 'error', message: `${t.e2eTestRunError}${err}` }
             : e
         ))
       }
@@ -1228,7 +1250,7 @@ export default function TaskDetail() {
         } catch {
           setChatEntries(prev => prev.map((e, i) =>
             i === streamingEntryIndexRef.current
-              ? { type: 'error', message: 'E2Eテストケース取得エラー' }
+              ? { type: 'error', message: t.e2eTCFetchError }
               : e
           ))
         }
@@ -1237,7 +1259,7 @@ export default function TaskDetail() {
         setGeneratingTestCases(false)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `E2Eテストケース生成エラー: ${err}` }
+            ? { type: 'error', message: `${t.e2eTCGenError}${err}` }
             : e
         ))
       }
@@ -1248,7 +1270,7 @@ export default function TaskDetail() {
     setChatEntries(prev => prev.map(e =>
       e.type === 'review' && !e.resolved ? { ...e, resolved: true } : e
     ))
-    setChatEntries(prev => [...prev, { type: 'info', message: '実装を承認しました。新しい指示を入力してください。' }])
+    setChatEntries(prev => [...prev, { type: 'info', message: t.approvedMsg }])
     setConfirmedPrompt('')
     setTestCaseItems([])
   }
@@ -1257,7 +1279,7 @@ export default function TaskDetail() {
     setChatEntries(prev => prev.map(e =>
       e.type === 'review' && !e.resolved ? { ...e, resolved: true } : e
     ))
-    setChatEntries(prev => [...prev, { type: 'info', message: '差し戻しました。指示を修正して再実行してください。' }])
+    setChatEntries(prev => [...prev, { type: 'info', message: t.rejectedMsg }])
     setInstruction(confirmedPrompt)
     setConfirmedPrompt('')
   }
@@ -1299,7 +1321,7 @@ export default function TaskDetail() {
         } catch {
           setChatEntries(prev => prev.map((e, i) =>
             i === streamingEntryIndexRef.current
-              ? { type: 'error', message: 'テストケース取得エラー' }
+              ? { type: 'error', message: t.testCaseFetchError }
               : e
           ))
         }
@@ -1308,7 +1330,7 @@ export default function TaskDetail() {
         setGeneratingTestCases(false)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `テストケース再生成エラー: ${err}` }
+            ? { type: 'error', message: `${t.testCaseRevisionError}${err}` }
             : e
         ))
       }
@@ -1367,7 +1389,7 @@ export default function TaskDetail() {
       const updated = await stopTask(task.id)
       setTask(updated)
     } catch (err) {
-      alert(err instanceof Error ? err.message : '停止に失敗しました')
+      alert(err instanceof Error ? err.message : t.stopFailed)
     } finally {
       setStopping(false)
     }
@@ -1384,7 +1406,7 @@ export default function TaskDetail() {
             padding: '8px 12px', fontSize: '0.82rem', color: '#bfdbfe',
             whiteSpace: 'pre-wrap', lineHeight: 1.6,
           }}>
-            <span style={{ fontSize: '0.72rem', color: '#60a5fa', marginBottom: '4px', display: 'block', fontWeight: 600 }}>あなたの指示</span>
+            <span style={{ fontSize: '0.72rem', color: '#60a5fa', marginBottom: '4px', display: 'block', fontWeight: 600 }}>{t.yourInstruction}</span>
             {entry.content}
           </div>
         )
@@ -1396,7 +1418,7 @@ export default function TaskDetail() {
             padding: '8px 12px', fontSize: '0.82rem', color: '#e2e8f0',
             whiteSpace: 'pre-wrap', lineHeight: 1.6,
           }}>
-            <span style={{ fontSize: '0.72rem', color: '#6366f1', marginBottom: '4px', display: 'block', fontWeight: 600 }}>Claude</span>
+            <span style={{ fontSize: '0.72rem', color: '#6366f1', marginBottom: '4px', display: 'block', fontWeight: 600 }}>{t.claudeLabel}</span>
             {entry.content}
           </div>
         )
@@ -1408,7 +1430,7 @@ export default function TaskDetail() {
             padding: '8px 12px', fontSize: '0.82rem', color: '#bfdbfe',
             whiteSpace: 'pre-wrap', lineHeight: 1.6, marginLeft: '20px',
           }}>
-            <span style={{ fontSize: '0.72rem', color: '#60a5fa', marginBottom: '4px', display: 'block', fontWeight: 600 }}>あなた</span>
+            <span style={{ fontSize: '0.72rem', color: '#60a5fa', marginBottom: '4px', display: 'block', fontWeight: 600 }}>{t.youLabel}</span>
             {entry.content}
           </div>
         )
@@ -1420,8 +1442,8 @@ export default function TaskDetail() {
             padding: '8px 12px', fontSize: '0.82rem', color: '#94a3b8',
             whiteSpace: 'pre-wrap', lineHeight: 1.6,
           }}>
-            <span style={{ fontSize: '0.72rem', color: '#6366f1', marginBottom: '4px', display: 'block', fontWeight: 600 }}>Claude</span>
-            {entry.content || <><span className="spinner" style={{ width: '10px', height: '10px', marginRight: '4px' }} />考え中...</>}
+            <span style={{ fontSize: '0.72rem', color: '#6366f1', marginBottom: '4px', display: 'block', fontWeight: 600 }}>{t.claudeLabel}</span>
+            {entry.content || <><span className="spinner" style={{ width: '10px', height: '10px', marginRight: '4px' }} />{t.thinking}</>}
           </div>
         )
 
@@ -1433,7 +1455,7 @@ export default function TaskDetail() {
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
-            プロンプトを生成しています...
+            {t.generatingPrompt}
           </div>
         )
 
@@ -1445,7 +1467,7 @@ export default function TaskDetail() {
             borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: '#6366f1', fontSize: '0.72rem', marginBottom: '6px', fontWeight: 600 }}>
-              生成されたプロンプト {entry.confirmed ? '(確定済み)' : '— 下のボタンで確定または再生成'}
+              {t.promptGenerated} {entry.confirmed ? t.promptConfirmed : t.promptPending}
             </div>
             <div style={{
               fontFamily: 'monospace', color: '#e2e8f0', whiteSpace: 'pre-wrap', lineHeight: 1.5,
@@ -1464,7 +1486,7 @@ export default function TaskDetail() {
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
-            実装を実行しています...（左ペインのログをご確認ください）
+            {t.implementationRunning}
           </div>
         )
 
@@ -1475,7 +1497,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#86efac',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-            ✅ 実装が完了しました
+            {t.implementationDone}
           </div>
         )
 
@@ -1487,7 +1509,7 @@ export default function TaskDetail() {
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
-            テストケースを生成しています...
+            {t.generatingTestCasesMsg}
           </div>
         )
 
@@ -1499,14 +1521,14 @@ export default function TaskDetail() {
             borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: '#6366f1', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
-              テストケース {entry.approved ? '(承認済み)' : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
+              {t.testCasesLabel} {entry.approved ? t.testCasesApproved : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
             </div>
             {entry.items.length === 0 ? (
               <div style={{ color: '#475569', fontSize: '0.82rem' }}>
-                テストケースがまだ生成されていません
+                {t.testCasesNone}
                 {confirmedPrompt && task?.status !== 'idle' && (
                   <span style={{ display: 'block', fontSize: '0.78rem', color: '#ef4444', marginTop: '4px' }}>
-                    タスクのコンテナが起動していません（ステータス: {task?.status}）
+                    {t.containerNotRunning}{task?.status}{t.containerNotRunningClose}
                   </span>
                 )}
               </div>
@@ -1515,10 +1537,10 @@ export default function TaskDetail() {
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.75rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #334155', background: '#0a0f1e' }}>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#6366f1', fontWeight: 600, whiteSpace: 'nowrap' }}>ID</th>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#6366f1', fontWeight: 600, whiteSpace: 'nowrap' }}>対象画面</th>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#6366f1', fontWeight: 600 }}>テスト項目</th>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#6366f1', fontWeight: 600 }}>期待出力</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#6366f1', fontWeight: 600, whiteSpace: 'nowrap' }}>{t.colId}</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#6366f1', fontWeight: 600, whiteSpace: 'nowrap' }}>{t.colTargetScreen}</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#6366f1', fontWeight: 600 }}>{t.colTestItem}</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#6366f1', fontWeight: 600 }}>{t.colExpectedOutput}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1545,7 +1567,7 @@ export default function TaskDetail() {
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
-            結合テストケースを生成しています...
+            {t.generatingIntegrationTC}
           </div>
         )
 
@@ -1557,14 +1579,14 @@ export default function TaskDetail() {
             borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: '#a855f7', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
-              結合テストケース {entry.approved ? '(承認済み)' : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
+              {t.integrationTCLabel} {entry.approved ? t.testCasesApproved : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
             </div>
             {entry.items.length === 0 ? (
               <div style={{ color: '#475569', fontSize: '0.82rem' }}>
-                結合テストケースがまだ生成されていません
+                {t.integrationTCNone}
                 {confirmedPrompt && task?.status !== 'idle' && (
                   <span style={{ display: 'block', fontSize: '0.78rem', color: '#ef4444', marginTop: '4px' }}>
-                    タスクのコンテナが起動していません（ステータス: {task?.status}）
+                    {t.containerNotRunning}{task?.status}{t.containerNotRunningClose}
                   </span>
                 )}
               </div>
@@ -1573,10 +1595,10 @@ export default function TaskDetail() {
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.75rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #334155', background: '#0a0f1e' }}>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#a855f7', fontWeight: 600, whiteSpace: 'nowrap' }}>ID</th>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#a855f7', fontWeight: 600, whiteSpace: 'nowrap' }}>対象</th>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#a855f7', fontWeight: 600 }}>テスト項目</th>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#a855f7', fontWeight: 600 }}>期待出力</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#a855f7', fontWeight: 600, whiteSpace: 'nowrap' }}>{t.colId}</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#a855f7', fontWeight: 600, whiteSpace: 'nowrap' }}>{t.colTarget}</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#a855f7', fontWeight: 600 }}>{t.colTestItem}</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#a855f7', fontWeight: 600 }}>{t.colExpectedOutput}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1603,7 +1625,7 @@ export default function TaskDetail() {
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
-            E2Eテストケースを生成しています...
+            {t.generatingE2ETC}
           </div>
         )
 
@@ -1615,14 +1637,14 @@ export default function TaskDetail() {
             borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: '#06b6d4', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
-              E2Eテストケース {entry.approved ? '(承認済み)' : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
+              {t.e2eTCLabel} {entry.approved ? t.testCasesApproved : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
             </div>
             {entry.items.length === 0 ? (
               <div style={{ color: '#475569', fontSize: '0.82rem' }}>
-                E2Eテストケースがまだ生成されていません
+                {t.e2eTCNone}
                 {confirmedPrompt && task?.status !== 'idle' && (
                   <span style={{ display: 'block', fontSize: '0.78rem', color: '#ef4444', marginTop: '4px' }}>
-                    タスクのコンテナが起動していません（ステータス: {task?.status}）
+                    {t.containerNotRunning}{task?.status}{t.containerNotRunningClose}
                   </span>
                 )}
               </div>
@@ -1631,10 +1653,10 @@ export default function TaskDetail() {
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.75rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #334155', background: '#0a0f1e' }}>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600, whiteSpace: 'nowrap' }}>ID</th>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600, whiteSpace: 'nowrap' }}>対象画面</th>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600 }}>テスト項目</th>
-                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600 }}>期待出力</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600, whiteSpace: 'nowrap' }}>{t.colId}</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600, whiteSpace: 'nowrap' }}>{t.colTargetScreen}</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600 }}>{t.colTestItem}</th>
+                      <th style={{ padding: '4px 6px', textAlign: 'left', color: '#06b6d4', fontWeight: 600 }}>{t.colExpectedOutput}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1675,18 +1697,18 @@ export default function TaskDetail() {
             borderRadius: '6px', padding: '10px 12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: resultColor, fontWeight: 600, marginBottom: entry.items.length > 0 ? '8px' : 0 }}>
-              {entry.passed ? '✅' : '❌'} {entry.summary || (entry.passed ? 'テスト合格' : 'テスト失敗')}
+              {entry.passed ? '✅' : '❌'} {entry.summary || (entry.passed ? t.testPassed : t.testFailed)}
             </div>
             {entry.items.length > 0 && (
               <div style={{ overflowX: 'auto', maxHeight: '200px', overflowY: 'auto' }}>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.72rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                      <th style={{ padding: '3px 6px', textAlign: 'left', color: '#94a3b8', fontWeight: 500, whiteSpace: 'nowrap' }}>ID</th>
-                      <th style={{ padding: '3px 6px', textAlign: 'left', color: '#94a3b8', fontWeight: 500 }}>テスト項目</th>
-                      <th style={{ padding: '3px 6px', textAlign: 'left', color: '#94a3b8', fontWeight: 500 }}>期待出力</th>
-                      <th style={{ padding: '3px 6px', textAlign: 'left', color: '#94a3b8', fontWeight: 500 }}>実際の出力</th>
-                      <th style={{ padding: '3px 6px', textAlign: 'center', color: '#94a3b8', fontWeight: 500, whiteSpace: 'nowrap' }}>判定</th>
+                      <th style={{ padding: '3px 6px', textAlign: 'left', color: '#94a3b8', fontWeight: 500, whiteSpace: 'nowrap' }}>{t.colId}</th>
+                      <th style={{ padding: '3px 6px', textAlign: 'left', color: '#94a3b8', fontWeight: 500 }}>{t.colTestItem}</th>
+                      <th style={{ padding: '3px 6px', textAlign: 'left', color: '#94a3b8', fontWeight: 500 }}>{t.colExpectedOutput}</th>
+                      <th style={{ padding: '3px 6px', textAlign: 'left', color: '#94a3b8', fontWeight: 500 }}>{t.colActualOutput}</th>
+                      <th style={{ padding: '3px 6px', textAlign: 'center', color: '#94a3b8', fontWeight: 500, whiteSpace: 'nowrap' }}>{t.colVerdict}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1700,7 +1722,7 @@ export default function TaskDetail() {
                           <td style={{ padding: '3px 6px', color: '#cbd5e1' }}>{tc.test_item}</td>
                           <td style={{ padding: '3px 6px', color: '#94a3b8' }}>{tc.expected_output ?? '—'}</td>
                           <td style={{ padding: '3px 6px', color: '#94a3b8' }}>{r?.actual_output ?? '—'}</td>
-                          <td style={{ padding: '3px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>{icon} {r?.verdict ?? '未実行'}</td>
+                          <td style={{ padding: '3px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>{icon} {r?.verdict ?? t.notExecuted}</td>
                         </tr>
                       )
                     })}
@@ -1720,14 +1742,14 @@ export default function TaskDetail() {
             borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: entry.resolved ? '#64748b' : '#facc15', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
-              実装確認 {entry.resolved ? '(完了)' : '— 下のボタンで承認または差し戻し'}
+              {t.reviewLabel} {entry.resolved ? t.reviewResolved : t.reviewPending}
             </div>
             <div style={{
               background: '#1e293b', borderRadius: '4px', padding: '8px',
               fontSize: '0.78rem', color: '#94a3b8', whiteSpace: 'pre-wrap',
               maxHeight: '100px', overflowY: 'auto',
             }}>
-              <span style={{ color: '#475569', fontSize: '0.7rem', display: 'block', marginBottom: '4px' }}>実行されたプロンプト</span>
+              <span style={{ color: '#475569', fontSize: '0.7rem', display: 'block', marginBottom: '4px' }}>{t.executedPrompt}</span>
               {entry.prompt}
             </div>
           </div>
@@ -1778,13 +1800,13 @@ export default function TaskDetail() {
         <>
           <div style={{ marginBottom: '6px' }}>
             <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: '0 0 4px' }}>
-              このプロンプトへの指摘・追加要望（任意）
+              {t.feedbackLabel}
             </p>
             <textarea
               className="instruction-textarea"
               value={feedback}
               onChange={e => setFeedback(e.target.value)}
-              placeholder="例: エラーメッセージの表示場所も指定してほしい"
+              placeholder={t.feedbackPlaceholder}
               rows={2}
               style={{ marginBottom: 0, minHeight: '50px', fontSize: '0.82rem' }}
               disabled={isBusy}
@@ -1792,10 +1814,10 @@ export default function TaskDetail() {
           </div>
           <div className="instruction-footer" style={{ margin: 0 }}>
             <button className="btn-primary" onClick={() => handleConfirmAndExecute(lastUnconfirmedPrompt.content)} disabled={isBusy}>
-              確定して実行
+              {t.confirmAndRun}
             </button>
             <button className="btn-secondary" onClick={handleRegenerate} disabled={isBusy}>
-              {generating ? '生成中...' : '再生成'}
+              {generating ? t.regenerating : t.regenerate}
             </button>
           </div>
         </>
@@ -1812,11 +1834,11 @@ export default function TaskDetail() {
             <div className="instruction-footer" style={{ margin: 0 }}>
               {confirmedPrompt && task?.status === 'idle' ? (
                 <button className="btn-primary" onClick={handleGenerateTestCasesManual} disabled={isBusy}>
-                  テストケースを生成
+                  {t.generateTestCases}
                 </button>
               ) : (
                 <span style={{ fontSize: '0.82rem', color: '#475569' }}>
-                  {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : 'テストケースを生成できません'}
+                  {task?.status !== 'idle' ? `${t.containerNotRunningBtn}${task?.status}${t.statusSuffix}` : t.testCaseFetchError}
                 </span>
               )}
             </div>
@@ -1831,26 +1853,26 @@ export default function TaskDetail() {
                   className="instruction-textarea"
                   value={revisionText}
                   onChange={e => setRevisionText(e.target.value)}
-                  placeholder="修正してほしい内容を入力してください..."
+                  placeholder={t.revisionPlaceholder}
                   style={{ minHeight: '70px', fontSize: '0.82rem', marginBottom: '6px' }}
                   autoFocus
                 />
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button className="btn-primary" disabled={!revisionText.trim()} onClick={() => handleRevisionRequest(revisionText.trim())}>
-                    送信
+                    {t.send}
                   </button>
                   <button className="btn-secondary" onClick={() => { setShowRevisionInput(false); setRevisionText('') }}>
-                    キャンセル
+                    {t.cancel}
                   </button>
                 </div>
               </div>
             )}
             <div className="instruction-footer" style={{ margin: 0 }}>
               <button className="btn-primary" onClick={() => handleApproveTestCases(items)} disabled={isBusy}>
-                {runningTests ? 'テスト実行中...' : '承認してテスト実行'}
+                {runningTests ? t.runningTestsBtn : t.approveAndRunTests}
               </button>
               <button className="btn-secondary" onClick={() => { setShowRevisionInput(prev => !prev); setRevisionText('') }} disabled={isBusy}>
-                修正を依頼
+                {t.requestRevision}
               </button>
             </div>
           </>
@@ -1863,11 +1885,11 @@ export default function TaskDetail() {
         return (
           <div className="instruction-footer" style={{ margin: 0 }}>
             <button className="btn-primary" onClick={() => handleApproveTestCases(latestTestCases.items)} disabled={isBusy}>
-              {runningTests ? 'テスト実行中...' : 'テストを再実行'}
+              {runningTests ? t.runningTestsBtn : t.rerunTests}
             </button>
             {confirmedPrompt && task?.status === 'idle' && (
               <button className="btn-secondary" onClick={handleGenerateTestCasesManual} disabled={isBusy}>
-                {generatingTestCases ? 'テストケース生成中...' : 'テストケースを再生成'}
+                {generatingTestCases ? t.generatingTestCasesBtn : t.regenerateTestCases}
               </button>
             )}
           </div>
@@ -1878,11 +1900,11 @@ export default function TaskDetail() {
         <div className="instruction-footer" style={{ margin: 0 }}>
           {confirmedPrompt && task?.status === 'idle' ? (
             <button className="btn-primary" onClick={handleGenerateTestCasesManual} disabled={isBusy}>
-              {generatingTestCases ? 'テストケース生成中...' : 'テストケースを生成'}
+              {generatingTestCases ? t.generatingTestCasesBtn : t.generateTestCases}
             </button>
           ) : (
             <span style={{ fontSize: '0.82rem', color: '#475569' }}>
-              {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : '先に実装を実行してください'}
+              {task?.status !== 'idle' ? `${t.containerNotRunningBtn}${task?.status}${t.statusSuffix}` : t.noUnitTestDone}
             </span>
           )}
         </div>
@@ -1905,11 +1927,11 @@ export default function TaskDetail() {
             <div className="instruction-footer" style={{ margin: 0 }}>
               {confirmedPrompt && task?.status === 'idle' ? (
                 <button className="btn-primary" onClick={handleGenerateIntegrationTestCasesManual} disabled={isBusy}>
-                  {generatingTestCases ? '結合テストケース生成中...' : '結合テストケースを生成'}
+                  {generatingTestCases ? t.generatingIntegrationTCBtn : t.generateIntegrationTC}
                 </button>
               ) : (
                 <span style={{ fontSize: '0.82rem', color: '#475569' }}>
-                  {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : '結合テストケースを生成できません'}
+                  {task?.status !== 'idle' ? `${t.containerNotRunningBtn}${task?.status}${t.statusSuffix}` : t.containerNotRunningIntegration}
                 </span>
               )}
             </div>
@@ -1918,10 +1940,10 @@ export default function TaskDetail() {
         return (
           <div className="instruction-footer" style={{ margin: 0 }}>
             <button className="btn-primary" onClick={() => handleApproveIntegrationTestCases(itcItems)} disabled={isBusy}>
-              {runningTests ? '結合テスト実行中...' : '承認して結合テスト実行'}
+              {runningTests ? t.runningIntegration : t.approveAndRunIntegration}
             </button>
             <button className="btn-secondary" onClick={handleGenerateIntegrationTestCasesManual} disabled={isBusy}>
-              修正を依頼
+              {t.requestRevision}
             </button>
           </div>
         )
@@ -1938,11 +1960,11 @@ export default function TaskDetail() {
         return (
           <div className="instruction-footer" style={{ margin: 0 }}>
             <button className="btn-primary" onClick={() => handleApproveIntegrationTestCases(latestIntegrationTC.items)} disabled={isBusy}>
-              {runningTests ? '結合テスト実行中...' : '結合テストを再実行'}
+              {runningTests ? t.runningIntegration : t.rerunIntegration}
             </button>
             {confirmedPrompt && task?.status === 'idle' && (
               <button className="btn-secondary" onClick={handleGenerateIntegrationTestCasesManual} disabled={isBusy}>
-                {generatingTestCases ? '結合テストケース生成中...' : '結合テストケースを再生成'}
+                {generatingTestCases ? t.generatingIntegrationTCBtn : t.regenerateIntegrationTC}
               </button>
             )}
           </div>
@@ -1954,11 +1976,11 @@ export default function TaskDetail() {
         <div className="instruction-footer" style={{ margin: 0 }}>
           {confirmedPrompt && task?.status === 'idle' ? (
             <button className="btn-primary" onClick={handleGenerateIntegrationTestCasesManual} disabled={isBusy}>
-              {generatingTestCases ? '結合テストケース生成中...' : '結合テストケースを生成'}
+              {generatingTestCases ? t.generatingIntegrationTCBtn : t.generateIntegrationTC}
             </button>
           ) : (
             <span style={{ fontSize: '0.82rem', color: '#475569' }}>
-              {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : '先に単体テストを完了してください'}
+              {task?.status !== 'idle' ? `${t.containerNotRunningBtn}${task?.status}${t.statusSuffix}` : t.noUnitTestDone}
             </span>
           )}
         </div>
@@ -1981,11 +2003,11 @@ export default function TaskDetail() {
             <div className="instruction-footer" style={{ margin: 0 }}>
               {confirmedPrompt && task?.status === 'idle' ? (
                 <button className="btn-primary" onClick={handleGenerateE2ETestCasesManual} disabled={isBusy}>
-                  {generatingTestCases ? 'E2Eテストケース生成中...' : 'E2Eテストケースを生成'}
+                  {generatingTestCases ? t.generatingE2ETCBtn : t.generateE2ETC}
                 </button>
               ) : (
                 <span style={{ fontSize: '0.82rem', color: '#475569' }}>
-                  {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : 'E2Eテストケースを生成できません'}
+                  {task?.status !== 'idle' ? `${t.containerNotRunningBtn}${task?.status}${t.statusSuffix}` : t.containerNotRunningE2E}
                 </span>
               )}
             </div>
@@ -1994,10 +2016,10 @@ export default function TaskDetail() {
         return (
           <div className="instruction-footer" style={{ margin: 0 }}>
             <button className="btn-primary" onClick={() => handleApproveE2ETestCases(e2eItems)} disabled={isBusy}>
-              {runningTests ? 'E2Eテスト実行中...' : '承認してE2Eテスト実行'}
+              {runningTests ? t.runningE2E : t.approveAndRunE2E}
             </button>
             <button className="btn-secondary" onClick={handleGenerateE2ETestCasesManual} disabled={isBusy}>
-              修正を依頼
+              {t.requestRevision}
             </button>
           </div>
         )
@@ -2014,11 +2036,11 @@ export default function TaskDetail() {
         return (
           <div className="instruction-footer" style={{ margin: 0 }}>
             <button className="btn-primary" onClick={() => handleApproveE2ETestCases(latestE2ETC.items)} disabled={isBusy}>
-              {runningTests ? 'E2Eテスト実行中...' : 'E2Eテストを再実行'}
+              {runningTests ? t.runningE2E : t.rerunE2E}
             </button>
             {confirmedPrompt && task?.status === 'idle' && (
               <button className="btn-secondary" onClick={handleGenerateE2ETestCasesManual} disabled={isBusy}>
-                {generatingTestCases ? 'E2Eテストケース生成中...' : 'E2Eテストケースを再生成'}
+                {generatingTestCases ? t.generatingE2ETCBtn : t.regenerateE2ETC}
               </button>
             )}
           </div>
@@ -2030,11 +2052,11 @@ export default function TaskDetail() {
         <div className="instruction-footer" style={{ margin: 0 }}>
           {confirmedPrompt && task?.status === 'idle' ? (
             <button className="btn-primary" onClick={handleGenerateE2ETestCasesManual} disabled={isBusy}>
-              {generatingTestCases ? 'E2Eテストケース生成中...' : 'E2Eテストケースを生成'}
+              {generatingTestCases ? t.generatingE2ETCBtn : t.generateE2ETC}
             </button>
           ) : (
             <span style={{ fontSize: '0.82rem', color: '#475569' }}>
-              {task?.status !== 'idle' ? `コンテナが起動していません（${task?.status}）` : '先に結合テストを完了してください'}
+              {task?.status !== 'idle' ? `${t.containerNotRunningBtn}${task?.status}${t.statusSuffix}` : t.noIntegrationDone}
             </span>
           )}
         </div>
@@ -2047,10 +2069,10 @@ export default function TaskDetail() {
         return (
           <div className="instruction-footer" style={{ margin: 0 }}>
             <button className="btn-primary" onClick={handleApproveImplementation} disabled={isBusy}>
-              承認
+              {t.approve}
             </button>
             <button className="btn-danger" onClick={handleRejectImplementation} disabled={isBusy}>
-              差し戻し
+              {t.reject}
             </button>
           </div>
         )
@@ -2084,7 +2106,7 @@ export default function TaskDetail() {
             className="instruction-textarea"
             value=""
             onChange={() => {}}
-            placeholder="このフェーズではコメント入力は使用しません"
+            placeholder={t.inputDisabledPlaceholder}
             disabled
             style={{ minHeight: '60px', marginBottom: 0, resize: 'none', opacity: 0.35 }}
           />
@@ -2103,7 +2125,7 @@ export default function TaskDetail() {
           className="instruction-textarea"
           value={instruction}
           onChange={e => setInstruction(e.target.value)}
-          placeholder={isClarifyMode ? '回答を入力... (Enter で送信)' : '指示を入力してください...'}
+          placeholder={isClarifyMode ? t.inputPlaceholderClarify : t.inputPlaceholder}
           disabled={isBusy || task?.status !== 'idle'}
           onKeyDown={e => {
             if (isClarifyMode && e.key === 'Enter' && !e.shiftKey) {
@@ -2122,19 +2144,19 @@ export default function TaskDetail() {
           {isClarifyMode ? (
             <>
               <button className="btn-primary" onClick={handleSendClarifyAnswer} disabled={!canSend}>
-                回答を送信
+                {t.sendAnswer}
               </button>
               <button className="btn-secondary" onClick={handleSkipClarify} disabled={isBusy}>
-                スキップしてプロンプトを生成
+                {t.skipAndGenerate}
               </button>
             </>
           ) : (
             <>
               <button className="btn-primary" onClick={handleStartClarify} disabled={!canSend}>
-                要件を確認する
+                {t.confirmRequirements}
               </button>
               <button className="btn-secondary" onClick={handleGeneratePrompt} disabled={!canSend}>
-                スキップしてプロンプトを生成
+                {t.skipAndGenerate}
               </button>
             </>
           )}
@@ -2155,11 +2177,11 @@ export default function TaskDetail() {
     return (
       <>
         <header className="app-header">
-          <h1>Xolvien</h1>
+          <h1>{t.appName}</h1>
         </header>
         <div className="page-content">
           <Link to="/" className="back-link">
-            &larr; 戻る
+            {t.back}
           </Link>
           <div className="error-banner">{taskError}</div>
         </div>
@@ -2171,9 +2193,9 @@ export default function TaskDetail() {
     return (
       <>
         <header className="app-header">
-          <h1>Xolvien</h1>
+          <h1>{t.appName}</h1>
         </header>
-        <div className="loading-state">読み込み中...</div>
+        <div className="loading-state">{t.loading}</div>
       </>
     )
   }
@@ -2182,7 +2204,7 @@ export default function TaskDetail() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Top bar */}
       <header className="app-header">
-        <h1>Xolvien</h1>
+        <h1>{t.appName}</h1>
       </header>
 
       <div className="task-detail-container">
@@ -2193,7 +2215,7 @@ export default function TaskDetail() {
             style={{ margin: 0, flexShrink: 0 }}
             onClick={() => navigate('/')}
           >
-            &larr; 戻る
+            {t.back}
           </Link>
 
           <span className="task-detail-topbar-title">{task.title}</span>
@@ -2222,11 +2244,19 @@ export default function TaskDetail() {
 
           <button
             className="btn-secondary btn-sm"
+            onClick={() => setLang(lang === 'ja' ? 'en' : 'ja')}
+            style={{ marginRight: '8px', fontFamily: 'monospace', fontWeight: 600, minWidth: '36px', flexShrink: 0 }}
+          >
+            {lang === 'ja' ? t.langEn : t.langJa}
+          </button>
+
+          <button
+            className="btn-secondary btn-sm"
             onClick={handleGitPush}
             disabled={pushing || streaming || task.status !== 'idle'}
             style={{ flexShrink: 0 }}
           >
-            {pushing ? 'Push中...' : 'Git Push'}
+            {pushing ? t.pushing : t.gitPush}
           </button>
 
           {showStopButton && (
@@ -2236,7 +2266,7 @@ export default function TaskDetail() {
               disabled={stopping}
               style={{ flexShrink: 0 }}
             >
-              {stopping ? '停止中...' : '停止'}
+              {stopping ? t.stopping : t.stop}
             </button>
           )}
         </div>
@@ -2259,21 +2289,21 @@ export default function TaskDetail() {
               }}>
                 <span className="spinner" />
                 {clarifying
-                  ? '要件を確認しています...'
+                  ? t.bannerClarifying
                   : generating
-                  ? 'プロンプト生成中...'
+                  ? t.bannerGenerating
                   : generatingTestCases
-                  ? 'テストケースを生成しています...'
+                  ? t.bannerGeneratingTC
                   : runningTests || task.status === 'testing'
-                  ? `${runningTestType === 'unit' ? '単体テスト' : runningTestType === 'integration' ? '結合テスト' : runningTestType === 'e2e' ? 'E2Eテスト' : 'テスト'}: ${testPhaseLabel ?? 'テストコードを生成中'}`
+                  ? `${runningTestType === 'unit' ? t.bannerUnitTest : runningTestType === 'integration' ? t.bannerIntegrationTest : runningTestType === 'e2e' ? t.bannerE2ETest : t.bannerTest}: ${testPhaseLabel ?? t.bannerTestGeneratingCode}`
                   : task.status === 'initializing'
-                  ? 'コンテナを準備中... (30秒〜1分かかります)'
-                  : '実行中... (完了まで1〜3分かかることがあります)'}
+                  ? t.bannerInitializing
+                  : t.bannerExecuting}
               </div>
             )}
             <div className="log-viewer" ref={logViewerRef} style={{ flex: 1 }}>
               {logEntries.length === 0 ? (
-                <p className="log-empty">ログはまだありません...</p>
+                <p className="log-empty">{t.noLogs}</p>
               ) : (
                 logEntries.map((entry, idx) => {
                   if (entry.kind === 'log') {
@@ -2298,7 +2328,7 @@ export default function TaskDetail() {
                   } else {
                     return (
                       <p key={entry.key} className="log-stream-chunk">
-                        {entry.text || '⏳ Claude Code CLI 起動中...'}
+                        {entry.text || t.cliStarting}
                       </p>
                     )
                   }
@@ -2373,7 +2403,7 @@ export default function TaskDetail() {
                       }}
                     >
                       <span>{icon}</span>
-                      <span>{step.label}</span>
+                      <span>{getStepLabel(step.id)}</span>
                       {step.resultLabel && (
                         <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>({step.resultLabel})</span>
                       )}
@@ -2396,7 +2426,7 @@ export default function TaskDetail() {
             }}>
               {chatEntries.length === 0 && (
                 <div style={{ color: '#475569', fontSize: '0.82rem', margin: 'auto', textAlign: 'center' }}>
-                  <p>指示を入力して開始してください</p>
+                  <p>{t.emptyState}</p>
                 </div>
               )}
               {chatEntries.map((entry, idx) => renderChatEntry(entry, idx))}

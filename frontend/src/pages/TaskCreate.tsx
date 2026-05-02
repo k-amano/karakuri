@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import type { Repository } from '../types'
 import { getRepositories, createRepository, createTask } from '../services/api'
+import { useLang } from '../i18n'
 
 type RepoMode = 'existing' | 'new'
 
@@ -15,6 +16,7 @@ interface FormErrors {
 
 export default function TaskCreate() {
   const navigate = useNavigate()
+  const { t, lang, setLang } = useLang()
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [repoMode, setRepoMode] = useState<RepoMode>('existing')
   const [selectedRepoId, setSelectedRepoId] = useState<string>('')
@@ -48,19 +50,19 @@ export default function TaskCreate() {
 
     if (repoMode === 'existing') {
       if (!selectedRepoId) {
-        errs.repoId = 'リポジトリを選択してください'
+        errs.repoId = t.validationSelectRepo
       }
     } else {
       if (!newRepoUrl.trim()) {
-        errs.repoUrl = 'リポジトリURLを入力してください'
+        errs.repoUrl = t.validationRepoUrl
       }
       if (!newRepoName.trim()) {
-        errs.repoName = 'リポジトリ名を入力してください'
+        errs.repoName = t.validationRepoName
       }
     }
 
     if (!title.trim()) {
-      errs.title = 'タイトルを入力してください'
+      errs.title = t.validationTitle
     }
 
     return errs
@@ -102,7 +104,7 @@ export default function TaskCreate() {
       navigate(`/tasks/${task.id}`)
     } catch (err) {
       setSubmitError(
-        err instanceof Error ? err.message : 'タスクの作成に失敗しました'
+        err instanceof Error ? err.message : t.createTaskFailed
       )
     } finally {
       setSubmitting(false)
@@ -112,17 +114,24 @@ export default function TaskCreate() {
   return (
     <>
       <header className="app-header">
-        <h1>Xolvien</h1>
+        <h1>{t.appName}</h1>
+        <button
+          className="btn-secondary btn-sm"
+          onClick={() => setLang(lang === 'ja' ? 'en' : 'ja')}
+          style={{ marginRight: '8px', fontFamily: 'monospace', fontWeight: 600, minWidth: '36px' }}
+        >
+          {lang === 'ja' ? t.langEn : t.langJa}
+        </button>
       </header>
 
       <div className="page-content">
         <Link to="/" className="back-link">
-          &larr; 戻る
+          {t.back}
         </Link>
 
         <div className="form-page-header">
-          <h2>新しいタスクを作成</h2>
-          <p>リポジトリとタスクの詳細を入力してください</p>
+          <h2>{t.createTaskTitle}</h2>
+          <p>{t.createTaskSubtitle}</p>
         </div>
 
         <div className="form-card">
@@ -133,7 +142,7 @@ export default function TaskCreate() {
           <form onSubmit={handleSubmit} noValidate>
             {/* Repository section */}
             <div style={{ marginBottom: '24px' }}>
-              <div className="form-section-title">リポジトリ</div>
+              <div className="form-section-title">{t.repository}</div>
 
               <div className="form-toggle">
                 <button
@@ -142,29 +151,29 @@ export default function TaskCreate() {
                   onClick={() => setRepoMode('existing')}
                   disabled={loadingRepos}
                 >
-                  既存のリポジトリを選択
+                  {t.selectExisting}
                 </button>
                 <button
                   type="button"
                   className={repoMode === 'new' ? 'active' : ''}
                   onClick={() => setRepoMode('new')}
                 >
-                  新しいリポジトリを追加
+                  {t.addNew}
                 </button>
               </div>
 
               {repoMode === 'existing' ? (
                 <div className="form-group">
                   <label className="form-label">
-                    リポジトリ <span className="required">*</span>
+                    {t.repoLabel} <span className="required">{t.required}</span>
                   </label>
                   {loadingRepos ? (
                     <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
-                      読み込み中...
+                      {t.loading}
                     </p>
                   ) : repositories.length === 0 ? (
                     <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
-                      リポジトリがありません。新しいリポジトリを追加してください。
+                      {t.noRepos}
                     </p>
                   ) : (
                     <select
@@ -172,7 +181,7 @@ export default function TaskCreate() {
                       value={selectedRepoId}
                       onChange={e => setSelectedRepoId(e.target.value)}
                     >
-                      <option value="">-- リポジトリを選択 --</option>
+                      <option value="">{t.selectRepoPlaceholder}</option>
                       {repositories.map(repo => (
                         <option key={repo.id} value={repo.id}>
                           {repo.name} ({repo.url})
@@ -188,14 +197,14 @@ export default function TaskCreate() {
                 <>
                   <div className="form-group">
                     <label className="form-label">
-                      リポジトリURL <span className="required">*</span>
+                      {t.repoUrlLabel} <span className="required">{t.required}</span>
                     </label>
                     <input
                       type="url"
                       className="form-input"
                       value={newRepoUrl}
                       onChange={e => setNewRepoUrl(e.target.value)}
-                      placeholder="git@github.com:ユーザー名/リポジトリ名.git"
+                      placeholder={t.repoUrlPlaceholder}
                     />
                     {errors.repoUrl && (
                       <p className="form-error">{errors.repoUrl}</p>
@@ -204,14 +213,14 @@ export default function TaskCreate() {
 
                   <div className="form-group">
                     <label className="form-label">
-                      リポジトリ名 <span className="required">*</span>
+                      {t.repoNameLabel} <span className="required">{t.required}</span>
                     </label>
                     <input
                       type="text"
                       className="form-input"
                       value={newRepoName}
                       onChange={e => setNewRepoName(e.target.value)}
-                      placeholder="my-project"
+                      placeholder={t.repoNamePlaceholder}
                     />
                     {errors.repoName && (
                       <p className="form-error">{errors.repoName}</p>
@@ -219,13 +228,13 @@ export default function TaskCreate() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">説明（任意）</label>
+                    <label className="form-label">{t.repoDescLabel}</label>
                     <input
                       type="text"
                       className="form-input"
                       value={newRepoDescription}
                       onChange={e => setNewRepoDescription(e.target.value)}
-                      placeholder="リポジトリの説明"
+                      placeholder={t.repoDescPlaceholder}
                     />
                   </div>
                 </>
@@ -234,18 +243,18 @@ export default function TaskCreate() {
 
             {/* Task section */}
             <div>
-              <div className="form-section-title">タスク詳細</div>
+              <div className="form-section-title">{t.taskDetails}</div>
 
               <div className="form-group">
                 <label className="form-label">
-                  タイトル <span className="required">*</span>
+                  {t.taskTitleLabel} <span className="required">{t.required}</span>
                 </label>
                 <input
                   type="text"
                   className="form-input"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  placeholder="タスクのタイトル"
+                  placeholder={t.taskTitlePlaceholder}
                 />
                 {errors.title && (
                   <p className="form-error">{errors.title}</p>
@@ -253,23 +262,23 @@ export default function TaskCreate() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">ブランチ名（任意）</label>
+                <label className="form-label">{t.branchNameLabel}</label>
                 <input
                   type="text"
                   className="form-input"
                   value={branchName}
                   onChange={e => setBranchName(e.target.value)}
-                  placeholder="空白の場合は xolvien/task-{id} が自動設定されます"
+                  placeholder={t.branchNamePlaceholder}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">説明（任意）</label>
+                <label className="form-label">{t.taskDescLabel}</label>
                 <textarea
                   className="form-textarea"
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  placeholder="タスクの説明"
+                  placeholder={t.taskDescPlaceholder}
                   rows={3}
                 />
               </div>
@@ -284,15 +293,15 @@ export default function TaskCreate() {
                 {submitting ? (
                   <>
                     <span className="spinner" />
-                    作成中...
+                    {t.creating}
                   </>
                 ) : (
-                  'タスクを作成'
+                  t.createTaskBtn
                 )}
               </button>
               <Link to="/">
                 <button type="button" className="btn-secondary">
-                  キャンセル
+                  {t.cancel}
                 </button>
               </Link>
             </div>

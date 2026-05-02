@@ -1,15 +1,21 @@
-import { createRoot } from 'react-dom/client'
+import React from 'react'
+import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import './styles.css'
 import App from './App'
+import './styles.css'
+import { LangContext, useLangState } from './i18n'
 
-const rootElement = document.getElementById('root')
-if (!rootElement) {
-  throw new Error('Root element not found')
+function LangProvider({ children }: { children: React.ReactNode }) {
+  const value = useLangState()
+  return <LangContext.Provider value={value}>{children}</LangContext.Provider>
 }
 
-createRoot(rootElement).render(
-  <BrowserRouter>
-    <App />
-  </BrowserRouter>
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <LangProvider>
+        <App />
+      </LangProvider>
+    </BrowserRouter>
+  </React.StrictMode>
 )
