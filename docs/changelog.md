@@ -2,6 +2,27 @@
 
 ---
 
+## 2026-05-02（2）
+
+### 日英両言語対応（UI i18n）
+
+**変更内容:**
+
+- フロントエンド `src/i18n/ja.ts`：全UI文字列の日本語翻訳マップを新設
+  - 動的文字列（進捗カウンター・エラーメッセージ等）は関数型キーで対応
+- フロントエンド `src/i18n/en.ts`：同構造の英語翻訳マップを新設
+- フロントエンド `src/i18n/index.ts`：`LangContext` / `useLang()` hook を新設
+  - `localStorage`（キー: `xolvien-lang`）に選択言語を永続化
+  - デフォルト言語: 日本語
+- フロントエンド `src/main.tsx`：`LangProvider` でアプリ全体をラップ
+- フロントエンド `Dashboard.tsx` / `TaskCreate.tsx` / `TaskDetail.tsx`：
+  - 全ハードコード文字列を `t.xxx` に置換
+  - 各ページのヘッダーに `JA` / `EN` トグルボタンを追加
+  - ステップバーのラベルを `getStepLabel(step.id)` で都度参照し、切り替え即時反映
+  - `formatDate` のロケールを `lang` に応じて `ja-JP` / `en-US` に切り替え
+
+---
+
 ## 2026-05-02
 
 ### E2Eテスト: verdict「未判定」バグの修正
