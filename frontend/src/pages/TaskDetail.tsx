@@ -502,7 +502,7 @@ export default function TaskDetail() {
       () => {
         setClarifying(false)
         if (streamedText.startsWith('PROMPT_READY')) {
-          const prompt = streamedText.replace(/^PROMPT_READY\n?/, '')
+          const prompt = streamedText.replace(/^PROMPT_READY\r?\n+/, '')
           setChatEntries(prev => prev.map((e, i) =>
             i === streamingEntryIndexRef.current
               ? { type: 'prompt_generated', content: prompt, confirmed: false }
@@ -564,7 +564,7 @@ export default function TaskDetail() {
       () => {
         setClarifying(false)
         if (streamedText.startsWith('PROMPT_READY')) {
-          const prompt = streamedText.replace(/^PROMPT_READY\n?/, '')
+          const prompt = streamedText.replace(/^PROMPT_READY\r?\n+/, '')
           setChatEntries(prev => prev.map((e, i) =>
             i === streamingEntryIndexRef.current
               ? { type: 'prompt_generated', content: prompt, confirmed: false }
@@ -1435,7 +1435,9 @@ export default function TaskDetail() {
           </div>
         )
 
-      case 'clarify_streaming':
+      case 'clarify_streaming': {
+        // Hide PROMPT_READY prefix while streaming — onDone will convert to prompt_generated
+        const displayContent = entry.content.startsWith('PROMPT_READY') ? '' : entry.content
         return (
           <div key={idx} style={{
             background: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
@@ -1443,9 +1445,10 @@ export default function TaskDetail() {
             whiteSpace: 'pre-wrap', lineHeight: 1.6,
           }}>
             <span style={{ fontSize: '0.72rem', color: '#6366f1', marginBottom: '4px', display: 'block', fontWeight: 600 }}>{t.claudeLabel}</span>
-            {entry.content || <><span className="spinner" style={{ width: '10px', height: '10px', marginRight: '4px' }} />{t.thinking}</>}
+            {displayContent || <><span className="spinner" style={{ width: '10px', height: '10px', marginRight: '4px' }} />{t.thinking}</>}
           </div>
         )
+      }
 
       case 'prompt_generating':
         return (

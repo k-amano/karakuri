@@ -162,7 +162,7 @@ export const en = {
   inputPlaceholder: 'Enter instructions...',
   inputDisabledPlaceholder: 'Input is not used in this phase',
   sendAnswer: 'Send Answer',
-  skipAndGenerate: 'Skip & Generate Prompt',
+  skipAndGenerate: 'Proceed',
   confirmRequirements: 'Confirm Requirements',
   emptyState: 'Enter instructions to get started',
 
