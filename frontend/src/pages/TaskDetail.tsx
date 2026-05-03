@@ -477,6 +477,7 @@ export default function TaskDetail() {
   async function handleStartClarify() {
     if (!instruction.trim() || clarifying || generating) return
     const userMsg = instruction.trim()
+    setInstruction('')
 
     setChatEntries(prev => [...prev, { type: 'user_instruction', content: userMsg }])
     setClarifying(true)
