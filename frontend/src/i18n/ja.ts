@@ -173,6 +173,7 @@ export const ja = {
   inputPlaceholderClarify: '回答を入力... (Enter で送信)',
   inputPlaceholder: '指示を入力してください...',
   inputDisabledPlaceholder: 'このフェーズではコメント入力は使用しません',
+  sendInstruction: '送信',
   sendAnswer: '回答を送信',
   skipAndGenerate: '次へ進む',
   generatePromptDirect: 'プロンプトを生成',

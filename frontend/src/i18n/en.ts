@@ -161,6 +161,7 @@ export const en = {
   inputPlaceholderClarify: 'Enter your answer... (Enter to send)',
   inputPlaceholder: 'Enter instructions...',
   inputDisabledPlaceholder: 'Input is not used in this phase',
+  sendInstruction: 'Send',
   sendAnswer: 'Send Answer',
   skipAndGenerate: 'Proceed',
   generatePromptDirect: 'Generate Prompt',

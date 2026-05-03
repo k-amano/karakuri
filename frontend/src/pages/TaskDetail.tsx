@@ -632,41 +632,6 @@ export default function TaskDetail() {
     )
   }
 
-  async function handleGeneratePrompt() {
-    if (!instruction.trim() || generating) return
-    const userMsg = instruction.trim()
-    setChatEntries(prev => [...prev, { type: 'user_instruction', content: userMsg }])
-    setGenerating(true)
-    setChatEntries(prev => {
-      streamingEntryIndexRef.current = prev.length
-      return [...prev, { type: 'prompt_generating' }]
-    })
-
-    let promptText = ''
-    await generatePromptStream(
-      taskId,
-      userMsg,
-      feedback,
-      (chunk) => { promptText += chunk },
-      () => {
-        setGenerating(false)
-        setFeedback('')
-        setChatEntries(prev => prev.map((e, i) =>
-          i === streamingEntryIndexRef.current
-            ? { type: 'prompt_generated', content: promptText, confirmed: false }
-            : e
-        ))
-      },
-      (err) => {
-        setGenerating(false)
-        setChatEntries(prev => prev.map((e, i) =>
-          i === streamingEntryIndexRef.current
-            ? { type: 'error', message: `${t.promptGenError}${err}` }
-            : e
-        ))
-      }
-    )
-  }
 
   async function handleRegenerate() {
     if (generating) return
@@ -2122,6 +2087,11 @@ export default function TaskDetail() {
     const canSend = !isBusy && instruction.trim().length > 0 && task?.status === 'idle'
     const actionButtons = renderActionButtons()
 
+    // Phase 1: initial — no chat entries yet, just started
+    const isInitialPhase = chatEntries.length === 0 || (
+      chatEntries.every(e => e.type === 'user_instruction')
+    )
+
     return (
       <div style={wrapperStyle}>
         <textarea
@@ -2144,7 +2114,13 @@ export default function TaskDetail() {
           </div>
         )}
         <div className="instruction-footer" style={{ margin: 0 }}>
-          {isClarifyMode ? (
+          {isInitialPhase ? (
+            // Phase 1: 初期状態 — 「送信」1つ
+            <button className="btn-primary" onClick={handleStartClarify} disabled={!canSend}>
+              {t.sendInstruction}
+            </button>
+          ) : isClarifyMode ? (
+            // Phase 2: Q&A中 — 「回答を送信」「次へ進む」
             <>
               <button className="btn-primary" onClick={handleSendClarifyAnswer} disabled={!canSend}>
                 {t.sendAnswer}
@@ -2154,14 +2130,8 @@ export default function TaskDetail() {
               </button>
             </>
           ) : (
-            <>
-              <button className="btn-primary" onClick={handleStartClarify} disabled={!canSend}>
-                {t.confirmRequirements}
-              </button>
-              <button className="btn-secondary" onClick={handleGeneratePrompt} disabled={!canSend}>
-                {t.generatePromptDirect}
-              </button>
-            </>
+            // Phase 3: Q&A完了後・プロンプト確認中など — actionButtons に委ねる（ここには到達しない想定）
+            null
           )}
           {task?.status !== 'idle' && statusMessage && (
             <span className="instruction-status">{statusMessage}</span>
