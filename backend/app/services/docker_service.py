@@ -77,22 +77,21 @@ class DockerService:
                 working_dir="/workspace",
             )
 
-            # Clone repository (disable credential prompting for non-interactive exec)
-            clone_cmd = f"git -c credential.helper= clone {repository_url} repo && cd repo && git checkout -b {branch_name} || git checkout {branch_name}"
+            # Clone the default branch, then create a new task branch from it.
+            # Always use -b to create a fresh branch — never reuse an existing remote branch.
+            # If the repo is empty (new), git clone succeeds but there is no HEAD yet;
+            # in that case we skip the checkout and let the agent make the first commit.
+            clone_cmd = (
+                f"git -c credential.helper= clone {repository_url} repo"
+                f" && cd repo"
+                f" && git checkout -b {branch_name}"
+                f" || (cd repo && git checkout -b {branch_name} 2>/dev/null || true)"
+            )
             exit_code, output = container.exec_run(
                 ["bash", "-c", clone_cmd],
                 workdir="/workspace",
                 environment={"GIT_TERMINAL_PROMPT": "0"},
             )
-
-            if exit_code != 0:
-                # If clone/checkout fails, try without creating new branch
-                clone_cmd = f"git -c credential.helper= clone {repository_url} repo && cd repo && git checkout {branch_name}"
-                exit_code, output = container.exec_run(
-                    ["bash", "-c", clone_cmd],
-                    workdir="/workspace",
-                    environment={"GIT_TERMINAL_PROMPT": "0"},
-                )
 
             if exit_code != 0:
                 raise RuntimeError(f"Failed to clone repository: {output.decode()}")

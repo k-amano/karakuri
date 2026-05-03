@@ -144,7 +144,10 @@ async def create_task(
 
     # Auto-generate branch name if not specified
     if not task_data.branch_name:
-        task.branch_name = f"xolvien/task-{task.id}"
+        # Derive a slug from the task title: lowercase, replace spaces/special chars with hyphens
+        import re as _re
+        slug = _re.sub(r'[^a-z0-9]+', '-', task_data.title.lower()).strip('-')[:40]
+        task.branch_name = f"xolvien/{task.id}-{slug}" if slug else f"xolvien/task-{task.id}"
         await db.commit()
         await db.refresh(task)
 
