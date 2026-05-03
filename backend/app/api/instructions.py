@@ -150,7 +150,7 @@ async def clarify_requirements_stream(
     async def generate():
         try:
             async for chunk in claude_service.clarify_requirements(
-                db, task_id, data.instruction, [m.model_dump() for m in data.history]
+                db, task_id, data.instruction, [m.model_dump() for m in data.history], data.lang
             ):
                 yield chunk
         except ValueError as e:

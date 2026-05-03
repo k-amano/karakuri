@@ -524,7 +524,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.clarifyError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 
@@ -586,7 +587,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.clarifyError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 

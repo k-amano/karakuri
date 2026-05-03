@@ -114,6 +114,7 @@ class ClaudeCodeService:
         task_id: int,
         instruction: str,
         history: list,
+        lang: str = "ja",
     ) -> AsyncGenerator[str, None]:
         """
         Conduct a clarification Q&A session before prompt generation.
@@ -143,10 +144,50 @@ class ClaudeCodeService:
         history_text = ""
         if history:
             for msg in history:
-                role_label = "Claude" if msg["role"] == "assistant" else "ユーザー"
+                if lang == "en":
+                    role_label = "Claude" if msg["role"] == "assistant" else "User"
+                else:
+                    role_label = "Claude" if msg["role"] == "assistant" else "ユーザー"
                 history_text += f"{role_label}: {msg['content']}\n\n"
 
-        clarify_prompt = f"""あなたは要件ヒアリング担当です。ユーザーの指示を受け取り、最適なコードを生成するために必要な不明点を質問します。
+        if lang == "en":
+            clarify_prompt = f"""You are a requirements analyst. You receive user instructions and ask clarifying questions to generate the best possible code.
+
+## Project Information
+
+File list:
+{file_list.strip()}
+
+README:
+{readme[:2000].strip()}
+
+## User Instruction
+
+{instruction}
+"""
+            if history_text:
+                clarify_prompt += f"""
+## Conversation History
+
+{history_text.strip()}
+"""
+            clarify_prompt += """
+## Your Role
+
+This is the requirements clarification phase. Continue asking questions until the user clicks "Proceed".
+
+Output 1–3 specific questions as a numbered list.
+Prioritize clarifying the following:
+- Programming language and framework to use (always ask if it cannot be determined from the file list)
+- Features, constraints, and expected behavior
+- If there is a UI, design and interaction flow
+- Specifications the user should decide (not implementation details)
+
+Never output "PROMPT_READY". Always respond with questions only.
+No preamble or explanation — output the question list only.
+"""
+        else:
+            clarify_prompt = f"""あなたは要件ヒアリング担当です。ユーザーの指示を受け取り、最適なコードを生成するために必要な不明点を質問します。
 
 ## プロジェクト情報
 
@@ -160,14 +201,13 @@ README:
 
 {instruction}
 """
-        if history_text:
-            clarify_prompt += f"""
+            if history_text:
+                clarify_prompt += f"""
 ## これまでの会話
 
 {history_text.strip()}
 """
-
-        clarify_prompt += """
+            clarify_prompt += """
 ## あなたの役割
 
 これは要件ヒアリングフェーズです。ユーザーが「次へ進む」を押すまで質問を続けてください。

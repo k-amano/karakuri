@@ -44,6 +44,7 @@ class ClarifyRequest(BaseModel):
 
     instruction: str
     history: List[ChatMessage] = []
+    lang: str = "ja"
 
 
 class InstructionBase(BaseModel):

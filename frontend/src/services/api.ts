@@ -126,7 +126,8 @@ export async function clarifyStream(
   history: { role: 'assistant' | 'user'; content: string }[],
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  lang: string = 'ja'
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -137,7 +138,7 @@ export async function clarifyStream(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${AUTH_TOKEN}`,
         },
-        body: JSON.stringify({ instruction, history }),
+        body: JSON.stringify({ instruction, history, lang }),
       }
     )
 
