@@ -2103,12 +2103,6 @@ export default function TaskDetail() {
           onChange={e => setInstruction(e.target.value)}
           placeholder={isClarifyMode ? t.inputPlaceholderClarify : t.inputPlaceholder}
           disabled={isBusy || task?.status !== 'idle'}
-          onKeyDown={e => {
-            if (isClarifyMode && e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              handleSendClarifyAnswer()
-            }
-          }}
           style={{ minHeight: '60px', marginBottom: 0, resize: 'vertical' }}
         />
         {actionButtons && (

@@ -170,7 +170,7 @@ export const ja = {
   reject: '差し戻し',
 
   // TaskDetail - input area
-  inputPlaceholderClarify: '回答を入力... (Enter で送信)',
+  inputPlaceholderClarify: '回答を入力...',
   inputPlaceholder: '指示を入力してください...',
   inputDisabledPlaceholder: 'このフェーズではコメント入力は使用しません',
   sendInstruction: '送信',

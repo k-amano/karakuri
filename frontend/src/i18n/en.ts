@@ -158,7 +158,7 @@ export const en = {
   approve: 'Approve',
   reject: 'Reject',
 
-  inputPlaceholderClarify: 'Enter your answer... (Enter to send)',
+  inputPlaceholderClarify: 'Enter your answer...',
   inputPlaceholder: 'Enter instructions...',
   inputDisabledPlaceholder: 'Input is not used in this phase',
   sendInstruction: 'Send',
