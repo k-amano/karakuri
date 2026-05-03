@@ -2159,7 +2159,7 @@ export default function TaskDetail() {
                 {t.confirmRequirements}
               </button>
               <button className="btn-secondary" onClick={handleGeneratePrompt} disabled={!canSend}>
-                {t.skipAndGenerate}
+                {t.generatePromptDirect}
               </button>
             </>
           )}

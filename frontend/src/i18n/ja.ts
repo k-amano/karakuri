@@ -175,6 +175,7 @@ export const ja = {
   inputDisabledPlaceholder: 'このフェーズではコメント入力は使用しません',
   sendAnswer: '回答を送信',
   skipAndGenerate: '次へ進む',
+  generatePromptDirect: 'プロンプトを生成',
   confirmRequirements: '要件を確認する',
   emptyState: '指示を入力して開始してください',
 
