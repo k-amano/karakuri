@@ -177,8 +177,10 @@ README:
 This is the requirements clarification phase. Continue asking questions until the user clicks "Proceed".
 
 Output 1–3 specific questions as a numbered list.
-Prioritize clarifying the following:
-- Programming language and framework to use (always ask if it cannot be determined from the file list)
+Always ask the following first:
+1. What programming language and framework should be used? (Ask this even if the file list suggests a language — confirm explicitly with the user)
+
+Then clarify as needed:
 - Features, constraints, and expected behavior
 - If there is a UI, design and interaction flow
 - Specifications the user should decide (not implementation details)
@@ -213,8 +215,10 @@ README:
 これは要件ヒアリングフェーズです。ユーザーが「次へ進む」を押すまで質問を続けてください。
 
 番号付きリストで1〜3個の具体的な質問を出力してください。
-以下の観点を優先的に確認してください：
-- 使用するプログラミング言語・フレームワーク（ファイル一覧から判断できない場合は必ず聞く）
+最初に必ず以下を聞いてください：
+1. 使用するプログラミング言語とフレームワークは何ですか？（ファイル一覧から推測できる場合でもユーザーに明示的に確認すること）
+
+その後、必要に応じて以下を確認してください：
 - 機能・制約・期待する動作
 - UIがある場合はデザインや操作フロー
 - ユーザーが決めるべき仕様（実装詳細ではなく）
