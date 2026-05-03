@@ -149,7 +149,6 @@ export default function TaskDetail() {
   const [streaming, setStreaming] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [pushing, setPushing] = useState(false)
-  const [feedback, setFeedback] = useState('')
   const [generating, setGenerating] = useState(false)
   const [clarifying, setClarifying] = useState(false)
 
@@ -164,8 +163,6 @@ export default function TaskDetail() {
   const [, setTestCaseItems] = useState<TestCaseItem[]>([])
   const [, setIntegrationTestCaseItems] = useState<TestCaseItem[]>([])
   const [, setE2ETestCaseItems] = useState<TestCaseItem[]>([])
-  const [showRevisionInput, setShowRevisionInput] = useState(false)
-  const [revisionText, setRevisionText] = useState('')
   const [confirmedPrompt, setConfirmedPrompt] = useState('')
 
   // Chat history (append-only)
@@ -613,11 +610,11 @@ export default function TaskDetail() {
     await generatePromptStream(
       taskId,
       instructionContent,
-      feedback,
+      instruction,
       (chunk) => { promptText += chunk },
       () => {
         setGenerating(false)
-        setFeedback('')
+        setInstruction('')
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
             ? { type: 'prompt_generated', content: promptText, confirmed: false }
@@ -653,11 +650,11 @@ export default function TaskDetail() {
     await generatePromptStream(
       taskId,
       originalInstruction?.content ?? '',
-      feedback,
+      instruction,
       (chunk) => { promptText += chunk },
       () => {
         setGenerating(false)
-        setFeedback('')
+        setInstruction('')
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
             ? { type: 'prompt_generated', content: promptText, confirmed: false }
@@ -678,7 +675,6 @@ export default function TaskDetail() {
   async function handleConfirmAndExecute(prompt: string) {
     setConfirmedPrompt(prompt)
     setInstruction('')
-    setFeedback('')
     setChatEntries(prev => prev.map(e =>
       e.type === 'prompt_generated' && !e.confirmed ? { ...e, confirmed: true } : e
     ))
@@ -1253,8 +1249,7 @@ export default function TaskDetail() {
   }
 
   async function handleRevisionRequest(revisionFeedback: string) {
-    setShowRevisionInput(false)
-    setRevisionText('')
+    setInstruction('')
     setGeneratingTestCases(true)
     setChatEntries(prev => prev.map(e =>
       e.type === 'test_cases_ready' && !e.approved ? { ...e, approved: true } : e
@@ -1768,30 +1763,14 @@ export default function TaskDetail() {
     // --- confirming phase: unconfirmed prompt exists ---
     if (lastUnconfirmedPrompt && effectiveStep !== 'unit_test' && effectiveStep !== 'review') {
       return (
-        <>
-          <div style={{ marginBottom: '6px' }}>
-            <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: '0 0 4px' }}>
-              {t.feedbackLabel}
-            </p>
-            <textarea
-              className="instruction-textarea"
-              value={feedback}
-              onChange={e => setFeedback(e.target.value)}
-              placeholder={t.feedbackPlaceholder}
-              rows={2}
-              style={{ marginBottom: 0, minHeight: '50px', fontSize: '0.82rem' }}
-              disabled={isBusy}
-            />
-          </div>
-          <div className="instruction-footer" style={{ margin: 0 }}>
-            <button className="btn-primary" onClick={() => handleConfirmAndExecute(lastUnconfirmedPrompt.content)} disabled={isBusy}>
-              {t.confirmAndRun}
-            </button>
-            <button className="btn-secondary" onClick={handleRegenerate} disabled={isBusy}>
-              {generating ? t.regenerating : t.regenerate}
-            </button>
-          </div>
-        </>
+        <div className="instruction-footer" style={{ margin: 0 }}>
+          <button className="btn-primary" onClick={() => handleConfirmAndExecute(lastUnconfirmedPrompt.content)} disabled={isBusy}>
+            {t.confirmAndRun}
+          </button>
+          <button className="btn-secondary" onClick={handleRegenerate} disabled={isBusy}>
+            {generating ? t.regenerating : t.regenerate}
+          </button>
+        </div>
       )
     }
 
@@ -1817,36 +1796,14 @@ export default function TaskDetail() {
         }
         // Test cases exist — show approve / revision buttons
         return (
-          <>
-            {showRevisionInput && (
-              <div style={{ marginBottom: '8px' }}>
-                <textarea
-                  className="instruction-textarea"
-                  value={revisionText}
-                  onChange={e => setRevisionText(e.target.value)}
-                  placeholder={t.revisionPlaceholder}
-                  style={{ minHeight: '70px', fontSize: '0.82rem', marginBottom: '6px' }}
-                  autoFocus
-                />
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn-primary" disabled={!revisionText.trim()} onClick={() => handleRevisionRequest(revisionText.trim())}>
-                    {t.send}
-                  </button>
-                  <button className="btn-secondary" onClick={() => { setShowRevisionInput(false); setRevisionText('') }}>
-                    {t.cancel}
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className="instruction-footer" style={{ margin: 0 }}>
-              <button className="btn-primary" onClick={() => handleApproveTestCases(items)} disabled={isBusy}>
-                {runningTests ? t.runningTestsBtn : t.approveAndRunTests}
-              </button>
-              <button className="btn-secondary" onClick={() => { setShowRevisionInput(prev => !prev); setRevisionText('') }} disabled={isBusy}>
-                {t.requestRevision}
-              </button>
-            </div>
-          </>
+          <div className="instruction-footer" style={{ margin: 0 }}>
+            <button className="btn-primary" onClick={() => handleApproveTestCases(items)} disabled={isBusy}>
+              {runningTests ? t.runningTestsBtn : t.approveAndRunTests}
+            </button>
+            <button className="btn-secondary" onClick={() => handleRevisionRequest(instruction)} disabled={isBusy || !instruction.trim()}>
+              {t.requestRevision}
+            </button>
+          </div>
         )
       }
       // unit_test selected but all approved / no pending — offer re-run or initial generate
@@ -2056,8 +2013,6 @@ export default function TaskDetail() {
 
   function renderInputArea() {
     const isBusy = streaming || generating || clarifying || generatingTestCases || runningTests
-    const isClarifyMode = chatEntries.length > 0 &&
-      chatEntries[chatEntries.length - 1].type === 'clarify_question'
 
     const wrapperStyle: React.CSSProperties = {
       borderTop: '1px solid #1e293b',
@@ -2069,67 +2024,83 @@ export default function TaskDetail() {
       background: '#0a0f1e',
     }
 
-    // ── 単体テスト・結合テスト・実装確認フェーズ ──
-    if (selectedStep === 'unit_test' || selectedStep === 'integration_test' || selectedStep === 'e2e_test' || selectedStep === 'review') {
-      return (
-        <div style={wrapperStyle}>
-          <textarea
-            className="instruction-textarea"
-            value=""
-            onChange={() => {}}
-            placeholder={t.inputDisabledPlaceholder}
-            disabled
-            style={{ minHeight: '60px', marginBottom: 0, resize: 'none', opacity: 0.35 }}
-          />
-          {renderActionButtons()}
-        </div>
-      )
-    }
-
-    // ── 実装フェーズ（要件確認・プロンプト生成） ──
-    const canSend = !isBusy && instruction.trim().length > 0 && task?.status === 'idle'
-    const actionButtons = renderActionButtons()
-
-    // Phase 1: initial — no chat entries yet, just started
-    const isInitialPhase = chatEntries.length === 0 || (
+    // Determine phase from chatEntries
+    const isInitialPhase = chatEntries.length === 0 ||
       chatEntries.every(e => e.type === 'user_instruction')
-    )
+    const isClarifyMode = !isInitialPhase &&
+      chatEntries[chatEntries.length - 1].type === 'clarify_question'
+    const lastUnconfirmedPrompt = chatEntries.reduce<(ChatEntry & { type: 'prompt_generated' }) | null>(
+      (last, e) => e.type === 'prompt_generated' && !e.confirmed ? e as ChatEntry & { type: 'prompt_generated' } : last, null)
+    const isPromptPhase = !!lastUnconfirmedPrompt &&
+      selectedStep !== 'unit_test' && selectedStep !== 'review'
+    const isTestOrReviewStep = selectedStep === 'unit_test' || selectedStep === 'integration_test' ||
+      selectedStep === 'e2e_test' || selectedStep === 'review'
+
+    const canSend = !isBusy && instruction.trim().length > 0 && task?.status === 'idle'
+
+    // Placeholder changes by phase
+    let placeholder = t.inputPlaceholder
+    if (isInitialPhase) placeholder = t.inputPlaceholder
+    else if (isClarifyMode) placeholder = t.inputPlaceholderClarify
+    else if (isPromptPhase) placeholder = t.feedbackPlaceholder
+    else if (isTestOrReviewStep) placeholder = t.inputDisabledPlaceholder
+
+    // Textarea is disabled during test/review steps (no free-text input) or while busy
+    const textareaDisabled = isBusy || task?.status !== 'idle' ||
+      (isTestOrReviewStep && !isPromptPhase)
+
+    // Buttons for each phase
+    let buttons: React.ReactNode = null
+    if (isInitialPhase) {
+      buttons = (
+        <button className="btn-primary" onClick={handleStartClarify} disabled={!canSend}>
+          {t.sendInstruction}
+        </button>
+      )
+    } else if (isClarifyMode) {
+      buttons = (
+        <>
+          <button className="btn-primary" onClick={handleSendClarifyAnswer} disabled={!canSend}>
+            {t.sendAnswer}
+          </button>
+          <button className="btn-secondary" onClick={handleSkipClarify} disabled={isBusy}>
+            {t.skipAndGenerate}
+          </button>
+        </>
+      )
+    } else if (isPromptPhase) {
+      buttons = (
+        <>
+          <button className="btn-primary" onClick={() => handleConfirmAndExecute(lastUnconfirmedPrompt!.content)} disabled={isBusy}>
+            {t.confirmAndRun}
+          </button>
+          <button className="btn-secondary" onClick={handleRegenerate} disabled={isBusy}>
+            {generating ? t.regenerating : t.regenerate}
+          </button>
+        </>
+      )
+    } else {
+      // test / review steps — delegate to renderActionButtons
+      buttons = renderActionButtons()
+    }
 
     return (
       <div style={wrapperStyle}>
         <textarea
           className="instruction-textarea"
-          value={instruction}
+          value={textareaDisabled && !isPromptPhase && isTestOrReviewStep ? '' : instruction}
           onChange={e => setInstruction(e.target.value)}
-          placeholder={isClarifyMode ? t.inputPlaceholderClarify : t.inputPlaceholder}
-          disabled={isBusy || task?.status !== 'idle'}
-          style={{ minHeight: '60px', marginBottom: 0, resize: 'vertical' }}
+          placeholder={placeholder}
+          disabled={textareaDisabled}
+          style={{
+            minHeight: '60px',
+            marginBottom: 0,
+            resize: 'vertical',
+            opacity: isTestOrReviewStep && !isPromptPhase ? 0.35 : 1,
+          }}
         />
-        {actionButtons && (
-          <div style={{ borderTop: '1px solid #1e293b', paddingTop: '8px' }}>
-            {actionButtons}
-          </div>
-        )}
         <div className="instruction-footer" style={{ margin: 0 }}>
-          {isInitialPhase ? (
-            // Phase 1: 初期状態 — 「送信」1つ
-            <button className="btn-primary" onClick={handleStartClarify} disabled={!canSend}>
-              {t.sendInstruction}
-            </button>
-          ) : isClarifyMode ? (
-            // Phase 2: Q&A中 — 「回答を送信」「次へ進む」
-            <>
-              <button className="btn-primary" onClick={handleSendClarifyAnswer} disabled={!canSend}>
-                {t.sendAnswer}
-              </button>
-              <button className="btn-secondary" onClick={handleSkipClarify} disabled={isBusy}>
-                {t.skipAndGenerate}
-              </button>
-            </>
-          ) : (
-            // Phase 3: Q&A完了後・プロンプト確認中など — actionButtons に委ねる（ここには到達しない想定）
-            null
-          )}
+          {buttons}
           {task?.status !== 'idle' && statusMessage && (
             <span className="instruction-status">{statusMessage}</span>
           )}
