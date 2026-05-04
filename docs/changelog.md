@@ -1,238 +1,234 @@
-# 改修履歴
+# Changelog
 
 ---
 
 ## 2026-05-03
 
-### UIバグ修正・入力欄の設計改善
+### UI Bug Fixes & Input Design Improvements
 
-**変更内容:**
+**Changes:**
 
-- **入力欄を1つに統一**: `feedback` / `revisionText` などフェーズごとに生えていた複数のテキストエリアを廃止し、入力欄は常に1つだけ存在する設計に変更。フェーズに応じてプレースホルダーとボタンが切り替わる
-  - フェーズ1（初期）: 「指示を入力...」+ **送信** ボタン
-  - フェーズ2（Q&A中）: 「回答を入力...」+ **回答を送信** / **次へ進む** ボタン
-  - フェーズ3（プロンプト確認）: 「フィードバック（任意）」+ **確定して実行** / **再生成** ボタン
-  - フェーズ4（テスト・レビュー）: 操作ボタンのみ
-- **Enter キーでの送信を廃止**: テキストエリアは Enter で改行のみ。送信はボタンのみ
-- **クラリファイ応答の言語対応**: UI 言語（JA/EN）をバックエンドの `/clarify` エンドポイントに送信し、Claude が UI と同じ言語で質問を返すよう対応
-- **クラリファイでプログラミング言語を必ず質問**: ファイル一覧から推測できる場合でも、Claude が明示的にプログラミング言語・フレームワークを確認するよう変更
+- **Unified to a single input field**: Removed multiple per-phase textareas (`feedback`, `revisionText`, etc.) in favor of a single persistent input field. Placeholder text and buttons switch based on the current phase.
+  - Phase 1 (initial): "Enter instruction…" + **Send** button
+  - Phase 2 (Q&A): "Enter answer…" + **Send Answer** / **Next** buttons
+  - Phase 3 (prompt review): "Feedback (optional)" + **Confirm & Execute** / **Regenerate** buttons
+  - Phase 4 (test / review): Action buttons only
+- **Removed Enter-to-send**: The textarea now inserts a newline on Enter. Sending requires a button click.
+- **Clarify language support**: The UI language (JA/EN) is now sent to the `/clarify` backend endpoint so Claude responds in the same language as the UI.
+- **Always ask for programming language during clarify**: Even when the file list implies a language, Claude now explicitly confirms the programming language and framework.
 
-### タスクブランチの分離修正
+### Task Branch Isolation Fix
 
-**変更内容:**
+**Changes:**
 
-- **常に `main` から新しいブランチを切る**: タスク作成時に `git clone` 後、必ず `git checkout -b {branch}` で新しいブランチを作成。同じリポジトリの別タスクの未マージ成果物が混入しなくなった
-- **ブランチ名にタイトルのスラグを付与**: 自動生成ブランチ名を `xolvien/task-{id}` から `xolvien/{id}-{title-slug}` に変更（例: `xolvien/5-translation-app`）
+- **Always create a fresh branch from main**: After `git clone`, the task initialization always runs `git checkout -b {branch}` to create a new branch. This prevents unmerged work from another task on the same repository from leaking in.
+- **Include title slug in branch name**: Auto-generated branch names changed from `xolvien/task-{id}` to `xolvien/{id}-{title-slug}` (e.g. `xolvien/5-translation-app`).
 
 ---
 
-## 2026-05-02（2）
+## 2026-05-02 (2)
 
-### 日英両言語対応（UI i18n）
+### Japanese/English UI i18n
 
-**変更内容:**
+**Changes:**
 
-- フロントエンド `src/i18n/ja.ts`：全UI文字列の日本語翻訳マップを新設
-  - 動的文字列（進捗カウンター・エラーメッセージ等）は関数型キーで対応
-- フロントエンド `src/i18n/en.ts`：同構造の英語翻訳マップを新設
-- フロントエンド `src/i18n/index.ts`：`LangContext` / `useLang()` hook を新設
-  - `localStorage`（キー: `xolvien-lang`）に選択言語を永続化
-  - デフォルト言語: 日本語
-- フロントエンド `src/main.tsx`：`LangProvider` でアプリ全体をラップ
-- フロントエンド `Dashboard.tsx` / `TaskCreate.tsx` / `TaskDetail.tsx`：
-  - 全ハードコード文字列を `t.xxx` に置換
-  - 各ページのヘッダーに `JA` / `EN` トグルボタンを追加
-  - ステップバーのラベルを `getStepLabel(step.id)` で都度参照し、切り替え即時反映
-  - `formatDate` のロケールを `lang` に応じて `ja-JP` / `en-US` に切り替え
+- Frontend `src/i18n/ja.ts`: New Japanese translation map covering all UI strings. Dynamic strings (progress counters, error messages, etc.) use function-type keys.
+- Frontend `src/i18n/en.ts`: Matching English translation map.
+- Frontend `src/i18n/index.ts`: New `LangContext` / `useLang()` hook.
+  - Language selection persisted to `localStorage` (key: `xolvien-lang`).
+  - Default language: Japanese.
+- Frontend `src/main.tsx`: App wrapped in `LangProvider`.
+- Frontend `Dashboard.tsx` / `TaskCreate.tsx` / `TaskDetail.tsx`:
+  - All hardcoded strings replaced with `t.xxx`.
+  - `JA` / `EN` toggle button added to each page header.
+  - Step bar labels resolved via `getStepLabel(step.id)` for instant switching.
+  - `formatDate` locale switches between `ja-JP` and `en-US` based on `lang`.
 
 ---
 
 ## 2026-05-02
 
-### E2Eテスト: verdict「未判定」バグの修正
+### E2E Tests: Fixed "undetermined" verdict bug
 
-**変更内容:**
+**Changes:**
 
-- バックエンド `claude_service.py`：E2E テスト結果が全件「未判定」になる問題を修正
-  - **原因1**: `_detect_test_command()` が Node.js プロジェクトに対して `npm test`（Jest）を返していたため、Jest が Playwright テストファイルを実行しようとして失敗・スキップされていた
-  - **原因2**: `--reporter=line` 形式は端末制御コード（`[1A[2K`）のみで `✓`/`✘` を含まないため、`_extract_result_for_function()` が verdict を判定できなかった
-  - **対応1**: `_detect_e2e_test_command()` を新設し、E2E 時は `_detect_test_command()` をバイパスして `npx playwright test --reporter=list 2>&1` を使用
-  - **対応2**: `--reporter=list` に変更（`✓`/`✘` が1テストごとに出力される形式）
-  - **対応3**: `_extract_result_for_function()` に Playwright `--reporter=list` 形式のパターンを追加（`function_name` を含む行で `✓`/`✘` を判定）
-  - **対応4**: `XOLVIEN_RESULT:` が出力された TC は「テストが実行された証拠」として exit_code から verdict を確定。出力されなかった TC は `FAILED` として扱い、「未判定」を終端状態としない
-  - **対応5**: 自動修正プロンプトに禁止事項を追加（`try/catch` で例外を握り潰して成功扱いにすること、`expect` 条件の弱体化を禁止。環境依存の問題は `grantPermissions()` / `page.route()` でモックして正しく検証するよう指示）
+- Backend `claude_service.py`: Fixed issue where all E2E test results showed as "undetermined".
+  - **Cause 1**: `_detect_test_command()` returned `npm test` (Jest) for Node.js projects, which tried to run Playwright test files via Jest and failed/skipped them.
+  - **Cause 2**: `--reporter=line` format only emits terminal control codes (`[1A[2K`) without `✓`/`✘`, so `_extract_result_for_function()` could not determine verdict.
+  - **Fix 1**: Added `_detect_e2e_test_command()` to bypass `_detect_test_command()` for E2E runs and use `npx playwright test --reporter=list 2>&1`.
+  - **Fix 2**: Switched to `--reporter=list` (outputs `✓`/`✘` per test).
+  - **Fix 3**: Added Playwright `--reporter=list` pattern to `_extract_result_for_function()` (detects `✓`/`✘` on lines containing `function_name`).
+  - **Fix 4**: TCs that emitted `XOLVIEN_RESULT:` are treated as "test ran" and verdict is finalized from exit code. TCs that produced no output are marked `FAILED` — "undetermined" is no longer a terminal state.
+  - **Fix 5**: Auto-fix prompt now explicitly forbids silencing exceptions with `try/catch`, weakening `expect` conditions, and instructs use of `grantPermissions()` / `page.route()` to mock environment-dependent behavior.
 
-- ドキュメント `docs/roadmap.md`：今後の実装予定項目を追加
-  - 日英両言語対応（優先度: 高）
-  - ファイルアップロードによる要件解析
-  - ドキュメント自動生成
-  - 進捗インジケーターの改善
-  - メッセージをいつでも送信可能にする
-  - 例外ハンドリングの改善
+- `docs/roadmap.md`: Added upcoming items.
 
 ---
 
 ## 2026-04-30
 
-### フェーズ3: E2Eテスト（Playwright）
+### Phase 3: E2E Tests (Playwright)
 
-**変更内容:**
+**Changes:**
 
-- バックエンド `claude_service.py`：`run_e2e_tests()` メソッドを追加
-  - `_run_tests()` に `TestType.E2E` を渡すラッパー
-  - `generate_test_cases(TestType.E2E)` でテストケース ID を `E2E-NNN`、関数名を `test_e2e001_` 形式で生成
-  - E2E テストコード生成プロンプトを追加：Playwright のインストール、アプリのバックグラウンド起動、ヘッドレスモード実行、スクリーンショットを `/workspace/repo/test-reports/screenshots/` に保存する指示を含む
-  - 結果ファイルを `/tmp/xolvien_e2e_results.jsonl` で管理（単体・結合と独立）
-  - `[E2E]` タグでログを出力
+- Backend `claude_service.py`: Added `run_e2e_tests()` method.
+  - Wrapper that passes `TestType.E2E` to `_run_tests()`.
+  - `generate_test_cases(TestType.E2E)` generates TC IDs in `E2E-NNN` format, function names in `test_e2e001_` format.
+  - Added E2E test code generation prompt: installs Playwright, starts app in background, runs headless, saves screenshots to `/workspace/repo/test-reports/screenshots/`.
+  - Result file managed at `/tmp/xolvien_e2e_results.jsonl` (independent from unit/integration).
+  - Logs tagged with `[E2E]`.
 
-- バックエンド `claude_service.py`：`generate_test_cases()` のE2E対応
-  - E2E専用テストケース生成プロンプトを追加：ブラウザ操作シナリオ（URL・クリック・入力・期待表示）を具体的に記述させる指示。8〜12件程度
-  - `_run_tests()` / `generate_test_cases()` 内の `is_integration` 単純二値分岐を `test_type` 直接参照に変更し、UNIT / INTEGRATION / E2E の三値を正しく処理
+- Backend `claude_service.py`: E2E support in `generate_test_cases()`.
+  - Added E2E-specific test case generation prompt (browser operation scenarios: URL, click, input, expected display). Targets 8–12 cases.
+  - Changed `is_integration` boolean branching to direct `test_type` reference to correctly handle UNIT / INTEGRATION / E2E.
 
-- バックエンド `models/test_case_item.py`：`tc_id` プロパティに `E2E` タイプを追加（`E2E-NNN` 形式）
+- Backend `models/test_case_item.py`: Added `E2E` type to `tc_id` property (`E2E-NNN` format).
 
-- バックエンド `schemas/instruction.py`：`RunE2ETestsRequest` を追加
+- Backend `schemas/instruction.py`: Added `RunE2ETestsRequest`.
 
-- バックエンド `api/instructions.py`：E2Eエンドポイントを追加
-  - `POST /generate-e2e-test-cases`（ストリーミング）
-  - `POST /run-e2e-tests`（ストリーミング）
+- Backend `api/instructions.py`: Added E2E endpoints.
+  - `POST /generate-e2e-test-cases` (streaming)
+  - `POST /run-e2e-tests` (streaming)
 
-- フロントエンド `services/api.ts`：E2E APIクライアント関数を追加
+- Frontend `services/api.ts`: Added E2E API client functions.
   - `generateE2ETestCasesStream()`
   - `runE2ETestsStream()`
-  - `getTestCaseItems()` の型引数に `'e2e'` を追加
+  - Added `'e2e'` to `getTestCaseItems()` type argument.
 
-- フロントエンド `pages/TaskDetail.tsx`：E2Eテストフローを実装
-  - `ChatEntry` 型に `e2e_test_cases_generating` / `e2e_test_cases_ready` を追加（シアン `#06b6d4` 配色）
-  - ステップバーの「E2Eテスト」から `future: true` フラグを削除してアクティブ化
-  - セッション復元時に E2E テストケース（`getTestCaseItems(taskId, 'e2e')`）と最新 E2E TestRun を DB から取得して復元
-  - ステップ遷移を更新：結合テスト合格 → E2Eテストへ自動遷移、E2Eテスト合格 → 実装確認へ遷移
-  - `handleApproveE2ETestCases()` / `handleGenerateE2ETestCasesManual()` ハンドラを追加
-  - `renderActionButtons()` に E2Eテストステップ用のボタン群を追加
-  - `renderInputArea()` の disabled 条件に `e2e_test` を追加
+- Frontend `pages/TaskDetail.tsx`: Implemented E2E test flow.
+  - Added `e2e_test_cases_generating` / `e2e_test_cases_ready` to `ChatEntry` type (cyan `#06b6d4`).
+  - Removed `future: true` flag from "E2E Test" step in the step bar.
+  - Restored E2E test cases (`getTestCaseItems(taskId, 'e2e')`) and latest E2E TestRun from DB on session resume.
+  - Updated step transitions: integration test pass → E2E, E2E pass → review.
+  - Added `handleApproveE2ETestCases()` / `handleGenerateE2ETestCasesManual()` handlers.
+  - Added E2E test step button group to `renderActionButtons()`.
+  - Added `e2e_test` to `renderInputArea()` disabled condition.
 
-- ドキュメント `docs/spec.md`・`docs/roadmap.md` を更新
+- Docs `docs/spec.md` and `docs/roadmap.md` updated.
 
 ---
 
 ## 2026-04-28
 
-### 結合テスト品質改善・バグ修正
+### Integration Test Quality Improvements & Bug Fixes
 
-**変更内容:**
+**Changes:**
 
-- バックエンド `claude_service.py`：結合テスト実行時の EACCES エラーを修正
-  - 単体テスト用の `/tmp/xolvien_tc_results.jsonl` のみ事前作成していたため、結合テストで `/tmp/xolvien_itc_results.jsonl` への書き込みが全件失敗していた
-  - `_run_tests()` に `results_file` 変数を追加し、`is_integration` フラグで JSONL ファイルパスを切り替え。作成・読み取りの両方で正しいパスを使用
+- Backend `claude_service.py`: Fixed EACCES error during integration test runs.
+  - Only `/tmp/xolvien_tc_results.jsonl` (unit test file) was pre-created, so writing to `/tmp/xolvien_itc_results.jsonl` failed for all integration test cases.
+  - Added `results_file` variable to `_run_tests()`, switching the JSONL path by `is_integration` flag. Both creation and reading now use the correct path.
 
-- バックエンド `claude_service.py`：結合テストケース生成プロンプトを改善
-  - 単体テストとの違い（DOM/localStorage ではなく HTTP リクエスト→API→DB のフロー）を明示するセクションを追加
-  - `target_screen`・`operation`・`expected_output` に HTTP メソッド・URL・リクエストボディ・レスポンスステータスを必須記述するよう指示を強化
-  - テストケース件数を 10〜15 件に制限（単体テスト同様の大量件数から削減）
+- Backend `claude_service.py`: Improved integration test case generation prompt.
+  - Added section explicitly differentiating from unit tests (HTTP request → API → DB flow rather than DOM/localStorage).
+  - Enforced HTTP method, URL, request body, and response status in `target_screen`, `operation`, and `expected_output`.
+  - Capped test case count at 10–15 (down from the larger unit test count).
 
-- バックエンド `claude_service.py`：結合テストコード生成プロンプトの `XOLVIEN_RESULT:` サンプルを修正
-  - 結合テストのサンプルが `TC-001`/`test_tc001_xxx` のままだったため `ITC-001`/`test_itc001_xxx` に切り替え
+- Backend `claude_service.py`: Fixed `XOLVIEN_RESULT:` sample in integration test code generation prompt.
+  - Sample used `TC-001`/`test_tc001_xxx`; switched to `ITC-001`/`test_itc001_xxx`.
 
-### フェーズ2: 結合テストケース分離（案A）
+### Phase 2: Integration Test Case Separation (Plan A)
 
-**変更内容:**
+**Changes:**
 
-- バックエンド `claude_service.py`：`generate_test_cases()` に `test_type` 引数を追加
-  - UNIT: `TC-NNN` / `test_tc001_` 形式、INTEGRATION: `ITC-NNN` / `test_itc001_` 形式
-  - 既存の同 `test_type` の TC のみ削除して保存（他種別は保持）
-- バックエンド `instructions.py`：`POST /generate-integration-test-cases`・`POST /run-integration-tests` エンドポイントを追加
-- DBマイグレーション `a1b2c3d4e5f6`：`test_case_items` テーブルに `test_type` カラム追加（既存の `testtype` PG enum を `create_type=False` で共有）
-- フロントエンド `TaskDetail.tsx`：結合テストケースの生成→確認→承認→実行の独立フローを追加
-- フロントエンド `api.ts`：`getTestCaseItems(taskId, testType?)` に `test_type` クエリパラメータ対応を追加
-- セッション再開時に単体・結合テストケースをそれぞれ DB から復元
-- エラー発生時にチャット欄にエラーメッセージを表示（サイレント握り潰しを廃止）
+- Backend `claude_service.py`: Added `test_type` argument to `generate_test_cases()`.
+  - UNIT: `TC-NNN` / `test_tc001_` format. INTEGRATION: `ITC-NNN` / `test_itc001_` format.
+  - Deletes only existing TCs of the same `test_type` before saving (other types are preserved).
+- Backend `instructions.py`: Added `POST /generate-integration-test-cases` and `POST /run-integration-tests` endpoints.
+- DB migration `a1b2c3d4e5f6`: Added `test_type` column to `test_case_items` table (reuses existing `testtype` PG enum with `create_type=False`).
+- Frontend `TaskDetail.tsx`: Added independent flow for integration test case generation → review → approval → run.
+- Frontend `api.ts`: Added `test_type` query parameter support to `getTestCaseItems(taskId, testType?)`.
+- Session resume now restores unit and integration test cases separately from DB.
+- API errors now displayed in chat panel (silent swallowing removed).
 
 ---
 
 ## 2026-04-21
 
-### テスト結果サマリー表示・修正UI改善（H2・H3）
+### Test Result Summary Display & Revision UI Improvement (H2, H3)
 
-**変更内容:**
+**Changes:**
 
-- フロントエンド `TaskDetail.tsx`：実装確認パネルにテスト結果サマリーバナーを追加（H2）
-  - テスト完了後および再開時に passed / failed 件数を緑 / 赤バナーで表示
-  - `testResultSummary` state で管理し、テスト完了時とページロード時の両方でセット
+- Frontend `TaskDetail.tsx`: Added test result summary banner to the review panel (H2).
+  - Shows passed / failed counts in green / red banners after test completion and on page reload.
+  - Managed via `testResultSummary` state; populated both on test completion and page load.
 
-- フロントエンド `TaskDetail.tsx`：テストケース修正UIを `window.prompt` からインライン入力欄に変更（H3）
-  - 「修正を依頼」ボタンでパネル内にテキストエリア + 送信 / キャンセルボタンをトグル表示
-  - 送信するとテストケースを再生成。キャンセルで入力欄を閉じる
+- Frontend `TaskDetail.tsx`: Replaced `window.prompt` with inline revision input for test case editing (H3).
+  - "Request revision" button toggles an inline textarea + Send / Cancel buttons.
+  - Submitting regenerates the test cases; Cancel closes the input.
 
 ---
 
 ## 2026-04-19
 
-### コンテナ自動再起動・ステップバー改善・文字化け修正
+### Container Auto-restart, Step Bar Improvements, Mojibake Fix
 
-**概要**: 翌日に続きから作業できない問題の修正、ステップバーのUI改善、ストリーミング文字化けの修正。
+**Summary**: Fixed the inability to resume work after restarting; improved step bar UI; fixed streaming character corruption.
 
-**変更内容:**
+**Changes:**
 
-- バックエンド `docker_service.py`：`ensure_container_running()` メソッドを追加
-  - `execute_command()` / `execute_command_stream()` の実行前にコンテナの状態を確認し、停止していれば自動で再起動する
-  - これにより、`docker compose down` で停止した翌日でもタスクを作り直さずに続きから操作できる
+- Backend `docker_service.py`: Added `ensure_container_running()` method.
+  - Checks container state before each `execute_command()` / `execute_command_stream()` call and restarts it if stopped.
+  - Allows resuming tasks after `docker compose down` without recreating them.
 
-- バックエンド `docker_service.py`：ストリーミングのUTF-8文字化けを修正（H1）
-  - `chunk.decode("utf-8", errors="replace")` を `codecs.getincrementaldecoder` に変更
-  - チャンク境界でマルチバイト文字が分割されても正しく結合してからデコードする
+- Backend `docker_service.py`: Fixed UTF-8 mojibake in streaming (H1).
+  - Changed `chunk.decode("utf-8", errors="replace")` to `codecs.getincrementaldecoder`.
+  - Correctly reassembles multi-byte characters split across chunk boundaries before decoding.
 
-- フロントエンド `TaskDetail.tsx`：ステップバーのUI改善
-  - 選択中のステップを黄色背景・黒テキストで強調表示
-  - `テストケース` と `単体テスト` の2ステップを `単体テスト` 1ステップに統合（動作の違いがなかったため）
-  - ステップバーのボタンからテスト結果件数の表示を削除（操作ボタンに情報を混在させない）
-  - ページロード時の自動再開でも着地したステップが選択状態で表示される
+- Frontend `TaskDetail.tsx`: Step bar UI improvements.
+  - Selected step highlighted with yellow background and black text.
+  - Merged "Test Cases" and "Unit Test" steps into a single "Unit Test" step (they had no behavioral difference).
+  - Removed test result counts from step bar buttons (avoids mixing data into action buttons).
+  - The auto-resumed step is shown as selected on page load.
 
 ---
 
 ## 2026-04-14
 
-### 前回の続きから再開（ステップバー）
+### Resume from Previous Session (Step Bar)
 
-**概要**: タスク詳細画面にステップバーを追加し、完了済みのステップから再開できるようにした。
+**Summary**: Added a step bar to the task detail screen to resume from a completed step.
 
-**変更内容:**
-- フロントエンド `TaskDetail.tsx` にステップバーUI（実装 → テストケース → 単体テスト → 結合テスト* → E2Eテスト* → 実装確認）を追加
-- ページロード時に `GET /instructions/last-completed` と `GET /test-runs` でDB履歴を取得し、ステップ状態を復元
-- 完了済みステップをクリックするとその画面に切り替わる。「実装」ステップは前回の指示を入力欄に復元する
-- 旧バナー方式（`isResumed` フラグ + 青いバナー）を廃止
-- バックエンド `instructions.py` に `GET /last-completed` エンドポイントを追加
+**Changes:**
+
+- Added step bar UI to frontend `TaskDetail.tsx` (Implement → Test Cases → Unit Test → Integration Test* → E2E Test* → Review).
+- On page load, fetches DB history via `GET /instructions/last-completed` and `GET /test-runs` to restore step state.
+- Clicking a completed step switches to that screen. The "Implement" step restores the previous instruction into the input field.
+- Removed the old banner approach (`isResumed` flag + blue banner).
+- Added `GET /last-completed` endpoint to backend `instructions.py`.
 
 ---
 
 ## 2026-04-12
 
-### フェーズ1：単体テスト自動化
+### Phase 1: Unit Test Automation
 
-**概要**: テストケース生成・単体テスト実行・自動修正ループを実装した。
+**Summary**: Implemented test case generation, unit test execution, and auto-fix loop.
 
-**変更内容:**
-- バックエンド `claude_service.py` に `generate_test_cases()`、`run_unit_tests()` を追加
-  - テストコマンドはClaude Agentが `package.json` / `pyproject.toml` 等から自動判断
-  - pytest未インストール時はClaude Agentが依存パッケージのインストールから実施
-  - 自動修正ループ：最大3回。失敗テスト名・エラーメッセージ・標準出力をフィードバック
-  - テストレポートを `/workspace/repo/test-reports/test-report-{日時}-unit.md` に保存
-- バックエンド `instructions.py` に以下のエンドポイントを追加
-  - `POST /generate-test-cases`（ストリーミング）
-  - `POST /run-unit-tests`（ストリーミング）
-- DBマイグレーション：`TestRun` モデルに `test_type`（UNIT/INTEGRATION/E2E）、`test_cases`、`retry_count`、`report_path` カラムを追加
-- フロントエンドにテストケース確認パネル・実装確認パネルを追加
-- `PromptState` を拡張：`test_cases` / `running_tests` / `reviewing` を追加
+**Changes:**
+
+- Backend `claude_service.py`: Added `generate_test_cases()` and `run_unit_tests()`.
+  - Test command auto-detected by Claude Agent from `package.json` / `pyproject.toml` etc.
+  - If pytest is not installed, Claude Agent handles dependency installation.
+  - Auto-fix loop: up to 3 attempts. Failed test names, error messages, and stdout fed back as context.
+  - Test report saved to `/workspace/repo/test-reports/test-report-{datetime}-unit.md`.
+- Backend `instructions.py`: Added endpoints:
+  - `POST /generate-test-cases` (streaming)
+  - `POST /run-unit-tests` (streaming)
+- DB migration: Added `test_type` (UNIT/INTEGRATION/E2E), `test_cases`, `retry_count`, `report_path` columns to `TestRun` model.
+- Frontend: Added test case review panel and implementation review panel.
+- Extended `PromptState`: added `test_cases` / `running_tests` / `reviewing`.
 
 ---
 
-## 2026-04-07（推定）
+## 2026-04-07 (estimated)
 
-### MVP 初期実装
+### MVP Initial Implementation
 
-**概要**: バックエンド・フロントエンドの基本機能を一通り実装した。
+**Summary**: Implemented the full backend and frontend feature set.
 
-**変更内容:**
-- バックエンド全機能実装（Docker管理、タスク/リポジトリ API、Claude Code実行、WebSocketログ配信、DB永続化）
-- フロントエンド全機能実装（ダッシュボード、タスク作成、タスク詳細、ログビューア、要件確認フロー、プロンプト確認）
-- `claude_service.py` の Claude Code実行をシミュレーションから実際のCLI（`--dangerously-skip-permissions` モード）に切り替え
-- プロジェクト名を karakuri → Xolvien に変更
+**Changes:**
+
+- Backend full implementation (Docker management, task/repository API, Claude Code execution, WebSocket log delivery, DB persistence).
+- Frontend full implementation (dashboard, task creation, task detail, log viewer, requirement clarification flow, prompt confirmation).
+- Switched `claude_service.py` Claude Code execution from simulation to real CLI (`--dangerously-skip-permissions` mode).
+- Renamed project from karakuri → Xolvien.

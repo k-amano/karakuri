@@ -1,136 +1,136 @@
-# Xolvien はじめてガイド
-## 〜 翻訳アプリを作るまで 〜
+# Xolvien Getting Started Guide
+## — Building a Translation App from Scratch —
 
-このガイドでは、Xolvien を初めて使う方が、セットアップから翻訳アプリを完成させるところまでを説明します。
-書いてある通りに操作すれば、実際に動く翻訳アプリが出来上がります。
-
----
-
-## Xolvien とは
-
-Xolvien は「Claude（クロード）」という AI に日本語で指示を出すと、自動的にプログラムのコードを書いてくれるツールです。プログラミングの知識がなくても、「翻訳アプリを作って」と指示するだけでアプリが完成します。
+This guide walks a first-time Xolvien user through everything from initial setup to completing a working translation app.
+Follow the steps exactly and you will have a real, runnable app at the end.
 
 ---
 
-## 動作条件
+## What is Xolvien?
 
-Xolvien を使うには以下がすべて必要です。
+Xolvien is a tool that writes program code automatically when you give instructions to an AI called "Claude." You don't need programming knowledge — just say "build a translation app" and the app is created for you.
 
-| 条件 | 説明 |
+---
+
+## Requirements
+
+All of the following are required to use Xolvien.
+
+| Requirement | Description |
 |---|---|
-| **Docker** | タスクごとの実行環境（コンテナ）を作るために使います |
-| **Python 3.11以上** | バックエンドの動作に必要です |
-| **Node.js 18以上** | フロントエンドの動作に必要です |
-| **Claude Code CLI（認証済み）** | AI（Claude）を呼び出すために使います |
-| **Claude Max Plan** | Claude Code CLI を通じて AI を利用するためのサブスクリプションです |
-| **GitHubアカウント＋SSH鍵** | コードの保存先リポジトリへのアクセスに使います |
+| **Docker** | Used to create an isolated container environment for each task |
+| **Python 3.11+** | Required to run the backend |
+| **Node.js 18+** | Required to run the frontend |
+| **Claude Code CLI (authenticated)** | Used to call the AI (Claude) |
+| **Claude Max Plan** | Subscription required to use the AI through the Claude Code CLI |
+| **GitHub account + SSH key** | Used to access the repository where code is stored |
 
-### Claude Code CLI と Max Plan について
+### Claude Code CLI and Max Plan
 
-Xolvien は AI との通信に Claude Code CLI（`claude` コマンド）を使います。
-Claude Code CLI はインストール後にログインすると、認証情報が `~/.claude/` フォルダに保存されます。
-Xolvien はこの認証情報をそのまま使うため、**APIキーの取得・設定は不要**です。
+Xolvien uses the Claude Code CLI (`claude` command) to communicate with the AI.
+After installing and logging in, Claude Code CLI stores credentials in `~/.claude/`.
+Xolvien uses these credentials directly — **no API key setup is needed**.
 
-Max Plan に加入済みであれば、追加の費用なく AI を利用できます。
+If you have an active Max Plan subscription, you can use the AI at no additional cost.
 
-> Claude Code CLI のインストールと Max Plan への加入が事前に完了していることを前提として、このガイドを進めます。
-> まだの場合は https://claude.ai/download からインストールしてログインしてください。
+> This guide assumes Claude Code CLI is already installed and authenticated, and that you have a Max Plan subscription.
+> If not, install and log in from https://claude.ai/download first.
 
-### GitHub SSH鍵について
+### GitHub SSH Key
 
-Xolvien はホストの `~/.ssh/` フォルダをコンテナにマウントします。
-ホストで GitHub へのSSH接続が設定済みであれば、コンテナ内からも同じ鍵でGitHubにアクセスできます。
+Xolvien mounts your host `~/.ssh/` folder into the container.
+If you have SSH access to GitHub configured on your host, the container will use the same key.
 
-SSH鍵の設定がまだの場合は、GitHubのドキュメント（Settings → SSH and GPG keys）を参照してください。
-設定が完了したら以下で確認できます：
+If you haven't set up an SSH key yet, refer to GitHub's documentation (Settings → SSH and GPG keys).
+Once configured, verify with:
 
 ```bash
 ssh -T git@github.com
-# Hi username! You've successfully authenticated と表示されれば OK
+# "Hi username! You've successfully authenticated" means it's working
 ```
 
 ---
 
-## 所要時間の目安
+## Time Estimates
 
-| 作業 | 時間 |
+| Task | Time |
 |---|---|
-| 初回セットアップ | 15〜20分 |
-| 毎回の起動 | 1〜2分 |
-| 翻訳アプリの生成 | 3〜5分 |
+| First-time setup | 15–20 minutes |
+| Starting up (each time) | 1–2 minutes |
+| Generating the translation app | 3–5 minutes |
 
-初回セットアップは最初の1回だけです。2回目以降は「第2部：起動する」から始めます。
+First-time setup only needs to be done once. From the second session onward, start from **Part 2: Starting Up**.
 
 ---
 
-# 第1部：初回セットアップ
+# Part 1: First-time Setup
 
-## 手順1｜事前準備を確認する
+## Step 1 — Verify prerequisites
 
-「ターミナル」を開きます。
+Open a **Terminal**.
 
-- **Windows（WSL）の場合**：スタートメニューで「Ubuntu」を検索して開きます
-- **Mac の場合**：Launchpad で「ターミナル」を検索して開きます
+- **Windows (WSL)**: Search for "Ubuntu" in the Start menu and open it.
+- **Mac**: Search for "Terminal" in Launchpad and open it.
 
-### Claude Code CLI の認証確認
+### Verify Claude Code CLI authentication
 
 ```bash
 claude --version
 ```
 
-以下のように表示されれば認証済みです。
+If it shows a version number like the following, you're authenticated:
 
 ```
 2.1.87 (Claude Code)
 ```
 
-バージョン番号が表示されず、ログインを求める画面が表示された場合は、画面の指示に従ってログインしてください。
+If a login prompt appears instead, follow the on-screen instructions to log in.
 
-### GitHub SSH鍵の確認
+### Verify GitHub SSH key
 
 ```bash
 ssh -T git@github.com
 ```
 
-以下のように表示されれば認証済みです。
+If you see this, your SSH key is configured:
 
 ```
 Hi username! You've successfully authenticated, but GitHub does not provide shell access.
 ```
 
-このメッセージが表示されない場合は、GitHubへのSSH鍵設定が必要です。GitHub の Settings → SSH and GPG keys で設定してください。
+If this message doesn't appear, you need to set up an SSH key in GitHub Settings → SSH and GPG keys.
 
 ---
 
-## 手順2｜リポジトリをクローンする
+## Step 2 — Clone the repository
 
-Xolvien のソースコードをダウンロードします。保存先は任意のディレクトリで構いません。
+Download the Xolvien source code. You can save it anywhere.
 
 ```bash
 git clone git@github.com:k-amano/xolvien.git
 cd xolvien
 ```
 
-`xolvien/` ディレクトリが作成され、その中に移動します。
-**以降の手順はすべてこの `xolvien/` ディレクトリの中で実行します。**
+This creates an `xolvien/` directory and moves you into it.
+**All subsequent steps are run from inside this `xolvien/` directory.**
 
 ---
 
-## 手順3｜環境変数ファイルを作る
+## Step 3 — Create the environment file
 
-以下を実行します。
+Run the following:
 
 ```bash
 cp .env.example backend/.env
 ```
 
-何も表示されなければ成功です。設定はデフォルトのままで動作します。確認したい場合：
+No output means success. To verify:
 
 ```bash
 cat backend/.env
 ```
 
-以下のような内容が表示されます。
+You should see something like:
 
 ```
 DATABASE_URL=postgresql+asyncpg://xolvien:xolvien@localhost:5433/xolvien
@@ -145,75 +145,67 @@ ANTHROPIC_API_KEY=
 ENVIRONMENT=development
 ```
 
-> `ANTHROPIC_API_KEY` は空のままで構いません。Claude Code CLI が Claude Max Plan のサブスクリプションを使用するため、APIキーは不要です。
+> Leave `ANTHROPIC_API_KEY` empty. Claude Code CLI uses your Max Plan subscription, so no API key is needed.
 
 ---
 
-## 手順4｜データベースを起動する
+## Step 4 — Start the database
 
-Xolvien のデータベース（PostgreSQL）は Docker コンテナとして起動します。
-**PostgreSQL を別途インストールする必要はありません。**
+Xolvien's database (PostgreSQL) runs as a Docker container.
+**You do not need to install PostgreSQL separately.**
 
 ```bash
 docker compose up -d db
 ```
 
-以下のように表示されれば OK です。
+If you see the following, it worked:
 
 ```
 [+] Running 1/1
  ✔ Container xolvien-db  Started                                                                    0.5s
 ```
 
-次に、データベースが正常に動いているか確認します。
+Check that the database is healthy:
 
 ```bash
 docker compose ps
 ```
 
-以下のように表示されます。
+You should see:
 
 ```
 NAME          IMAGE                COMMAND                  SERVICE   CREATED        STATUS                   PORTS
 xolvien-db   postgres:16-alpine   "docker-entrypoint.s…"   db        X minutes ago  Up X minutes (healthy)   0.0.0.0:5433->5432/tcp
 ```
 
-`STATUS` の列に **`(healthy)`** と書かれていれば OK です。
-
-**`(health: starting)` と表示された場合：** まだ起動中です。20〜30秒待ってから、もう一度 `docker compose ps` を実行してください。
+**`(healthy)`** in the STATUS column means it's running. If it shows **`(health: starting)`**, wait 20–30 seconds and run `docker compose ps` again.
 
 ---
 
-## 手順5｜バックエンドをセットアップする
+## Step 5 — Set up the backend
 
-以下を **1行ずつ** 実行してください。1つ実行するたびに完了を確認してから次に進みます。
+Run the following **one line at a time**, waiting for each to complete before continuing.
 
 ```bash
 cd backend
 ```
 
-何も表示されなければ OK です。
+No output = OK.
 
 ```bash
 python3 -m venv venv
 ```
 
-何も表示されなければ OK です。
+No output = OK.
 
 ```bash
 source venv/bin/activate
 ```
 
-実行後、ターミナルの行頭が以下のように変わります。
+After running, your prompt should show `(venv)` at the beginning:
 
 ```
-(venv) administrator@owl:~/Projects/xolvien/backend$
-```
-
-先頭に `(venv)` が付いていれば OK です。ターミナルの表示例：
-
-```
-(venv) ユーザー名@コンピュータ名:~/xolvien/backend$
+(venv) user@computer:~/xolvien/backend$
 ```
 
 ```bash
@@ -222,49 +214,47 @@ pip install fastapi "uvicorn[standard]" sqlalchemy asyncpg psycopg2-binary \
     python-multipart websockets aiofiles
 ```
 
-たくさんの文字が流れます。最後に以下のどちらかが表示されれば OK です。
+A lot of text will scroll. You're done when you see either:
 
-**初めてインストールする場合：**
+**First install:**
 ```
-Successfully installed ...（たくさんのパッケージ名）...
+Successfully installed ...
 ```
 
-**すでにインストール済みの場合：**
+**Already installed:**
 ```
 Requirement already satisfied: fastapi in ./venv/...
-Requirement already satisfied: sqlalchemy in ./venv/...
-...（各パッケージについて同様の行が続く）
 ```
-`Requirement already satisfied` はすでにインストール済みという意味です。問題ありません。
+
+`Requirement already satisfied` just means it's already installed — no problem.
 
 ```bash
 alembic upgrade head
 ```
 
-以下のどちらかが表示されれば OK です。
+You're done when you see either:
 
-**初めて実行する場合：**
+**First run:**
 ```
-INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
-INFO  [alembic.runtime.migration] Will assume transactional DDL.
 INFO  [alembic.runtime.migration] Running upgrade  -> xxxxxxxx, Initial migration
 ```
 
-**すでに適用済みの場合：**
+**Already up to date:**
 ```
 INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
 INFO  [alembic.runtime.migration] Will assume transactional DDL.
 ```
-`Running upgrade` の行が出ない場合は、すでにデータベースが最新の状態になっています。問題ありません。
+
+No `Running upgrade` line means the database is already current — no problem.
 
 ---
 
-## 手順6｜Docker ワークスペースイメージをビルドする
+## Step 6 — Build the Docker workspace image
 
-Xolvien がコードを動かすための専用環境を作ります。**5〜10分かかります。**
-たくさんの文字が流れますが、完了まで待ちます。
+This creates the dedicated execution environment Xolvien uses to run code. **Takes 5–10 minutes.**
+A lot of text will scroll. Just wait for it to finish.
 
-まずプロジェクトルートに戻ります（手順5で `backend/` に移動していた場合）：
+Return to the project root first (if you moved to `backend/` in Step 5):
 
 ```bash
 cd ..
@@ -274,13 +264,13 @@ cd ..
 docker build -t xolvien-workspace:latest ./docker/workspace/
 ```
 
-最後に以下のように表示されれば OK です。
+When you see either of the following, it's done:
 
 ```
 => => naming to docker.io/library/xolvien-workspace:latest
 ```
 
-または
+or
 
 ```
 Successfully tagged xolvien-workspace:latest
@@ -288,7 +278,7 @@ Successfully tagged xolvien-workspace:latest
 
 ---
 
-## 手順7｜フロントエンドの依存パッケージをインストールする
+## Step 7 — Install frontend dependencies
 
 ```bash
 cd frontend
@@ -298,70 +288,56 @@ cd frontend
 npm install
 ```
 
-最後に以下のどちらかが表示されれば OK です。
+Done when you see either:
 
-**初めてインストールする場合：**
+**First install:**
 ```
 added XXX packages, and audited XXX packages in Xs
 ```
 
-**すでにインストール済みの場合：**
+**Already installed:**
 ```
 up to date, audited 231 packages in 46s
-
-48 packages are looking for funding
-  run `npm fund` for details
-
-9 vulnerabilities (3 moderate, 6 high)
-...
 ```
-`up to date` はすでにインストール済みという意味です。`vulnerabilities`（脆弱性）の警告が出ることがありますが、ローカル開発環境での使用では問題ありません。無視して進んでください。
 
-表示が終わるとコマンドプロンプト（`$` で終わる行）に戻ります。これで手順7は完了です。
-
----
-
-> ### ここまでの手順1〜7は初回セットアップです。完了しました。
-> このターミナルは閉じても構いません。
-> 次の「第2部：起動する」では新しいターミナルを2つ開いて使います。
-> 2回目以降は手順3〜7は不要です。「第2部：起動する」から始めてください。
+`up to date` means everything is already installed. `vulnerabilities` warnings may appear — these are safe to ignore in a local development environment.
 
 ---
 
-# 第2部：起動する（毎回行う）
-
-2回目以降はここから始めます。
-
-ターミナルウィンドウを **2つ** 用意します。
+> ### Steps 1–7 are the one-time first-time setup. You're done.
+> You can close this terminal.
+> For **Part 2: Starting Up**, open two new terminal windows.
+> From the second session onward, skip to **Part 2** — Steps 3–7 are not needed again.
 
 ---
 
-### ターミナル A：バックエンドを起動する
+# Part 2: Starting Up (every session)
 
-**新しいターミナルウィンドウを開いて**、以下を順番に実行します。
+Start here from the second session onward.
 
-まず `xolvien/` ディレクトリに移動します（クローンした場所に合わせてください）：
+Open **2 terminal windows**.
+
+---
+
+### Terminal A: Start the backend
+
+**Open a new terminal window** and run the following in order.
+
+Navigate to the `xolvien/` directory (adjust the path to where you cloned it):
 
 ```bash
-cd xolvien   # クローンしたディレクトリ名（パスが違う場合は適宜変更）
+cd xolvien
 ```
 
 ```bash
 docker compose up -d db
 ```
 
-以下のように表示されれば OK です（すでに起動している場合は `Running` と表示されます）。
+You should see (or `Running` if already started):
 
 ```
 [+] Running 1/1
  ✔ Container xolvien-db  Started                                                                    0.5s
-```
-
-または
-
-```
-[+] Running 1/1
- ✔ Container xolvien-db  Running                                                                    0.0s
 ```
 
 ```bash
@@ -372,383 +348,343 @@ cd backend
 source venv/bin/activate
 ```
 
-行頭に `(venv)` が付いていれば OK です。
+`(venv)` at the start of your prompt means it's active.
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-以下のように表示されれば起動成功です。このターミナルは **閉じずに** そのままにしておきます。
+If you see the following, the backend is running. **Leave this terminal open.**
 
 ```
-INFO:     Will watch for changes in these directories: ['/path/to/xolvien/backend']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [XXXXX] using StatReload
-INFO:     Started server process [XXXXX]
-INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 ```
 
 ---
 
-### バックエンドを再起動する（アップデート後など）
+### Restarting the backend (after updates)
 
-Xolvien をアップデートした後（`git pull` を実行した後）は、バックエンドを再起動する必要があります。
-再起動しないと、新機能が反映されなかったり文字化けなどの不具合が残ったりすることがあります。
+After updating Xolvien (`git pull`), you need to restart the backend.
+Without a restart, new features may not take effect or old bugs may remain.
 
-**ターミナル A（バックエンドが動いているターミナル）で以下を順番に実行します。**
+**In Terminal A (the backend terminal), run the following in order.**
 
----
-
-#### ステップ 1｜バックエンドを停止する
+#### Step 1 — Stop the backend
 
 ```
 Ctrl + C
 ```
 
-以下のように表示され、最後にコマンドプロンプト（`$` で終わる行）が戻ってきます。
+You'll see shutdown messages and get your prompt back:
 
 ```
 ^CINFO:     Shutting down
-INFO:     connection closed
-INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [13106]
-INFO:     Stopping reloader process [13104]
-(venv) administrator@owl:~/Projects/xolvien/backend$
+(venv) user@computer:~/xolvien/backend$
 ```
 
-行頭に `(venv)`、行末に `xolvien/backend$` と表示されていれば OK です。
-`Ctrl+C` を押すとバックエンドは停止しますが、仮想環境（`venv`）とディレクトリの位置はそのまま保たれます。
-
----
-
-#### ステップ 2｜データベースを最新にする
+#### Step 2 — Apply database migrations
 
 ```bash
 alembic upgrade head
 ```
 
-以下のように表示されれば OK です。
-
-**新しいテーブルが追加された場合（アップデートの内容による）：**
+**If new tables were added:**
 ```
 INFO  [alembic.runtime.migration] Running upgrade xxxxxxxx -> yyyyyyyy, add_test_case_items_and_results
 ```
 
-**すでに最新の場合：**
+**Already up to date:**
 ```
 INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
-INFO  [alembic.runtime.migration] Will assume transactional DDL.
 ```
 
-`Running upgrade` の行が出ない場合はすでに最新です。問題ありません。どちらの場合も次へ進みます。
-
----
-
-#### ステップ 3｜バックエンドを起動する
+#### Step 3 — Start the backend
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-以下のように表示されれば再起動成功です。このターミナルは **閉じずに** そのままにしておきます。
+#### Step 4 — Reload the browser
 
-```
-INFO:     Will watch for changes in these directories: ['/path/to/xolvien/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [XXXXX] using StatReload
-INFO:     Started server process [XXXXX]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-```
+After the backend restarts, press **F5** (or Ctrl+R / Cmd+R) to reload the page.
 
 ---
 
-#### ステップ 4｜ブラウザを再読み込みする
+### Terminal B: Start the frontend
 
-バックエンドの再起動後は、ブラウザで **F5**（または Ctrl+R / Cmd+R）を押して再読み込みしてください。
-
----
-
-### ターミナル B：フロントエンドを起動する
-
-**もう1つ別のターミナルウィンドウを開いて**、以下を実行します。
+**Open another terminal window** and run:
 
 ```bash
-cd xolvien/frontend   # クローンした場所に合わせて変更してください
+cd xolvien/frontend
 ```
 
 ```bash
 npm run dev
 ```
 
-以下のように表示されれば起動成功です。このターミナルも **閉じずに** そのままにしておきます。
+When you see the following, the frontend is running. **Leave this terminal open.**
 
 ```
-> xolvien-frontend@0.1.0 dev
-> vite
-
   VITE v5.X.X  ready in XXX ms
 
   ➜  Local:   http://localhost:5173/
-  ➜  Network: http://XXX.XXX.XXX.XXX:5173/
-  ➜  press h + enter to show help
 ```
 
 ---
 
-### ブラウザで開く
+### Open in the browser
 
-Chrome や Firefox などのブラウザのアドレスバーに以下を入力して開きます。
+Enter the following in your browser's address bar:
 
 ```
 http://localhost:5173
 ```
 
-以下のような画面が表示されれば起動成功です。
+If you see a screen like this, you're up and running:
 
 ```
 ┌─────────────────────────────────┐
-│  Xolvien          新しいタスク  │
+│  Xolvien          New task      │
 ├─────────────────────────────────┤
-│  タスク一覧                      │
+│  Task list                      │
 │                                 │
-│  タスクがありません。             │
-│  新しいタスクを作成してください。  │
+│  No tasks yet.                  │
+│  Create a new task.             │
 └─────────────────────────────────┘
 ```
 
 ---
 
-# 第3部：リポジトリ・プロジェクト・タスク・ブランチの関係
+# Part 3: Repositories, Projects, Tasks, and Branches
 
-Xolvien を使う上で最も重要な概念です。操作を始める前に必ず読んでください。
+This is the most important conceptual foundation for using Xolvien. Read this before you start.
 
 ---
 
-## 4つの概念
+## The four concepts
 
-| 用語 | Xolvien での意味 | GitHub での対応 |
+| Term | Meaning in Xolvien | GitHub equivalent |
 |---|---|---|
-| **リポジトリ** | コードの保存場所。1つのプログラム = 1つのリポジトリ | GitHub リポジトリ |
-| **プロジェクト** | Xolvien 内でのリポジトリの呼び名。登録すると一覧に表示される | （Xolvien の管理単位） |
-| **タスク** | ひとつの作業単位（「翻訳アプリを作る」「ログイン機能を追加する」など） | ブランチ1本に対応 |
-| **ブランチ** | タスクごとに自動で作られる作業用ブランチ | GitHub ブランチ |
+| **Repository** | Where code is stored. One program = one repository. | GitHub repository |
+| **Project** | Xolvien's name for a registered repository. Shows up in the list once registered. | (Xolvien management unit) |
+| **Task** | One unit of work ("build a translation app", "add login feature", etc.) | Corresponds to one branch |
+| **Branch** | The working branch automatically created for each task. | GitHub branch |
 
 ---
 
-## リポジトリとプロジェクトの関係
+## Repository vs. Project
 
-「リポジトリ」は GitHub 上のコード保存場所、「プロジェクト」は Xolvien がそのリポジトリを管理するための登録情報です。
+A "repository" is a code storage location on GitHub. A "project" is the registration record Xolvien uses to manage that repository.
 
-**1つのプログラム = 1つのリポジトリ = 1つのプロジェクト** が基本です。
+**One program = one repository = one project** is the rule.
 
 ```
 GitHub
-  └─ リポジトリ「translation-app」（翻訳アプリのコード）
-  └─ リポジトリ「calculator-app」 （電卓アプリのコード）
+  └─ repository "translation-app"  (translation app code)
+  └─ repository "calculator-app"   (calculator app code)
 
 Xolvien
-  └─ プロジェクト「翻訳アプリ」→ translation-app リポジトリに紐付け
-  └─ プロジェクト「電卓アプリ」→ calculator-app リポジトリに紐付け
+  └─ project "Translation App" → linked to translation-app repository
+  └─ project "Calculator App"  → linked to calculator-app repository
 ```
 
-リポジトリを Xolvien に一度登録（＝プロジェクト作成）すると、次回からは登録済みのプロジェクトを選ぶだけです。**登録は1回だけです。**
+Once you register a repository in Xolvien (= create a project), you just select it from the list next time. **Registration is a one-time step.**
 
 ---
 
-## タスクとブランチの関係
+## Task vs. Branch
 
-タスクを作成すると、**`main` ブランチから新しい作業ブランチが自動で切られます。** タスクと作業ブランチは1対1で対応します。
+When you create a task, **a new working branch is automatically cut from `main`.** Each task maps one-to-one to a working branch.
 
 ```
-main ブランチ（完成済みのコード）
-  ├─ xolvien/1-create-translation-app  ← タスク「翻訳アプリを作る」の作業ブランチ
-  ├─ xolvien/2-improve-design          ← タスク「デザインを改善する」の作業ブランチ
-  └─ xolvien/3-add-error-handling      ← タスク「エラー処理を追加する」の作業ブランチ
+main branch (completed code)
+  ├─ xolvien/1-create-translation-app  ← working branch for task "Build translation app"
+  ├─ xolvien/2-improve-design          ← working branch for task "Improve design"
+  └─ xolvien/3-add-error-handling      ← working branch for task "Add error handling"
 ```
 
-それぞれのタスクは独立した作業ブランチで進むため、**別タスクの作業内容が混入することはありません。**
+Each task runs on its own independent branch, so **work from one task never leaks into another.**
 
 ---
 
-## 「新規作成」と「既存修正」の4パターン
+## The four usage patterns
 
-### パターン1｜新しいプログラムを新規に作る
+### Pattern 1 — Build a brand-new program
 
-> 例：「翻訳アプリをゼロから作りたい」
+> Example: "I want to build a translation app from scratch."
 
-**GitHub でリポジトリを新規作成してから**、Xolvien でプロジェクト登録とタスク作成を行います。
+**Create a repository on GitHub first**, then register it in Xolvien and create a task.
 
 ```
-操作の流れ：
-1. GitHub でリポジトリを新規作成（空のリポジトリ）
-2. Xolvien → 「新しいタスク」
-3. 「新しいリポジトリを追加」タブ → SSH URL を入力して登録
-4. タスクタイトルを入力（例：「翻訳アプリを作る」）
-5. 「タスクを作成」
+Flow:
+1. Create a new (empty) repository on GitHub
+2. Xolvien → "New task"
+3. "Add new repository" tab → enter SSH URL and register
+4. Enter task title (e.g. "Build translation app")
+5. "Create task"
    ↓
-   main ブランチから xolvien/1-create-translation-app が自動で作成される
-   空のリポジトリに対して作業開始
+   xolvien/1-create-translation-app is automatically created from main
+   Work starts against the empty repository
 ```
 
-**このパターンのポイント：**
-- リポジトリは**空でも構いません**（README すら不要）
-- Xolvien がブランチを作り、コードをゼロから生成します
+**Key points:**
+- The repository can be **completely empty** (even without a README).
+- Xolvien creates the branch and generates all code from scratch.
 
 ---
 
-### パターン2｜同じプログラムに機能を追加・修正する（2回目以降）
+### Pattern 2 — Add features or fix an existing program (2nd task onward)
 
-> 例：「翻訳アプリにダークモードを追加したい」
+> Example: "I want to add dark mode to the translation app."
 
-**前回のタスクが完了していること（main にマージ済みであること）を確認してから**、新しいタスクを作成します。
+**Confirm the previous task's changes are merged into main first**, then create a new task.
 
 ```
-操作の流れ：
-1. 前回のタスクの変更を main にマージ済みであることを確認
-   （GitHub でプルリクエストを作成してマージ、またはブランチを直接 main にマージ）
-2. Xolvien → 「新しいタスク」
-3. 「既存のリポジトリを選択」タブ → リストから翻訳アプリのプロジェクトを選択
-4. タスクタイトルを入力（例：「ダークモードを追加する」）
-5. 「タスクを作成」
+Flow:
+1. Confirm the previous task's changes are merged into main
+   (create a pull request on GitHub and merge, or merge the branch directly into main)
+2. Xolvien → "New task"
+3. "Select existing repository" tab → choose the translation app project from the list
+4. Enter task title (e.g. "Add dark mode")
+5. "Create task"
    ↓
-   main ブランチの最新状態から xolvien/2-add-dark-mode が自動で作成される
-   前回の変更が含まれた状態で作業開始
+   xolvien/2-add-dark-mode is automatically created from the latest main
+   Work starts with the previous task's changes already included
 ```
 
-**このパターンのポイント：**
-- **必ず前回の変更を main にマージしてから**新しいタスクを作ってください
-- タスク作成時に `main` の最新状態を取り込むため、マージ前に作ると前回の変更が含まれません
-- 「既存のリポジトリを選択」タブにリポジトリが表示されていれば、再登録は不要です
+**Key points:**
+- **Always merge the previous task into main before** creating a new task.
+- Since Xolvien picks up `main` at task creation time, an unmerged previous task will not be included.
+- If the repository is already in the "Select existing repository" list, no re-registration is needed.
 
 ---
 
-### パターン3｜Xolvien 以外で作ったプログラムを修正する
+### Pattern 3 — Modify code created outside Xolvien
 
-> 例：「以前自分で書いた電卓アプリをリファクタリングしたい」
+> Example: "I want to refactor a calculator app I wrote myself."
 
-GitHub にリポジトリがあれば、Xolvien 外で作ったコードでも同様に扱えます。初回はプロジェクト登録が必要です。
+Any code that lives in a GitHub repository can be handled the same way, even if it wasn't created with Xolvien. Registration is required on the first use.
 
 ```
-操作の流れ：
-1. Xolvien → 「新しいタスク」
-2. 「新しいリポジトリを追加」タブ → 既存リポジトリの SSH URL を入力して登録
-3. タスクタイトルを入力（例：「電卓アプリをリファクタリングする」）
-4. 「タスクを作成」
+Flow:
+1. Xolvien → "New task"
+2. "Add new repository" tab → enter the existing repository's SSH URL and register
+3. Enter task title (e.g. "Refactor calculator app")
+4. "Create task"
    ↓
-   main ブランチの現在の状態から作業ブランチが作成される
-   既存コードに対して作業開始
+   A working branch is created from the current state of main
+   Work starts against the existing code
 ```
 
-**このパターンのポイント：**
-- GitHub 上にリポジトリがあれば、Xolvien で作っていないコードでも修正できます
-- 初回のみ「新しいリポジトリを追加」で登録、2回目以降は「既存のリポジトリを選択」
+**Key points:**
+- Any code with a GitHub repository can be modified through Xolvien.
+- First time: use "Add new repository". Second time onward: use "Select existing repository".
 
 ---
 
-### パターン4｜別のプログラムを新規に作る
+### Pattern 4 — Build a separate new program
 
-> 例：「翻訳アプリとは別に、電卓アプリを新しく作りたい」
+> Example: "I want to build a calculator app, separate from the translation app."
 
-別のプログラムは**別のリポジトリ**に保存します。翻訳アプリのリポジトリに電卓アプリを同居させることは推奨しません。
+A different program goes in a **different repository**. Putting a calculator app inside the translation app's repository is not recommended.
 
 ```
-操作の流れ：
-1. GitHub で電卓アプリ用の新しいリポジトリを新規作成
-2. Xolvien → 「新しいタスク」
-3. 「新しいリポジトリを追加」タブ → 新しいリポジトリの SSH URL を入力して登録
-4. タスクタイトルを入力（例：「電卓アプリを作る」）
-5. 「タスクを作成」
+Flow:
+1. Create a new repository for the calculator app on GitHub
+2. Xolvien → "New task"
+3. "Add new repository" tab → enter the new repository's SSH URL and register
+4. Enter task title (e.g. "Build calculator app")
+5. "Create task"
 ```
 
-**このパターンのポイント：**
-- プログラムの数だけリポジトリとプロジェクトが増えていきます
-- 既存プロジェクト（翻訳アプリ）には手を加えません
+**Key points:**
+- The number of repositories and projects grows with the number of programs.
+- The existing translation app project is left untouched.
 
 ---
 
-## まとめ：どのタブを選べばいいか
+## Summary: which tab to pick
 
-タスク作成時の「リポジトリ選択」で迷ったときの判断基準：
+When the "select repository" screen appears during task creation:
 
-| 状況 | 選ぶタブ |
+| Situation | Tab to select |
 |---|---|
-| そのリポジトリを Xolvien に初めて登録する | **新しいリポジトリを追加** |
-| 以前 Xolvien で使ったことがあるリポジトリ | **既存のリポジトリを選択** |
+| Registering this repository in Xolvien for the first time | **Add new repository** |
+| This repository was used in Xolvien before | **Select existing repository** |
 
-「既存のリポジトリを選択」タブを開いてリストにリポジトリ名が表示されていれば「既存」、何も表示されていなければ「新しいリポジトリを追加」を選びます。
-
----
-
-# 第4部：翻訳アプリを作る
-
-ここからはすべてブラウザの画面で操作します。
+If the repository name appears in the "Select existing repository" list, choose "existing." If the list is empty or the name is missing, choose "Add new repository."
 
 ---
 
-## 手順8｜新しいタスクを作成する
+# Part 4: Building a Translation App
 
-画面右上の青いボタン **「新しいタスク」** をクリックします。
-
-「新しいタスクを作成」という画面が開きます。
+From here, all steps are done in the browser.
 
 ---
 
-### ステップ A｜リポジトリを選ぶ
+## Step 8 — Create a new task
 
-画面には **「既存のリポジトリを選択」** と **「新しいリポジトリを追加」** の2つのタブがあります。
+Click the blue **"New task"** button in the top right of the screen.
 
-> どちらを選ぶかは「第3部：リポジトリ・プロジェクト・タスク・ブランチの関係」を参照してください。
-> 翻訳アプリはこれが初めての操作なので、**「新しいリポジトリを追加」** タブを選びます。
+A "Create new task" dialog opens.
 
-**「新しいリポジトリを追加」** タブをクリックして、以下の通り入力します。
+---
 
-> **事前準備：** GitHub上にリポジトリが作成されている必要があります。まだの場合は GitHub でリポジトリを新規作成してからこの手順を進めてください。
+### Step A — Select a repository
 
-| 項目 | 入力する内容 |
+The dialog has two tabs: **"Select existing repository"** and **"Add new repository"**.
+
+> For guidance on which to choose, see Part 3.
+> Since this is the first time using the translation app, select **"Add new repository"**.
+
+Click **"Add new repository"** and fill in:
+
+> **Prerequisites:** The repository must already exist on GitHub. If not, create it on GitHub before continuing.
+
+| Field | What to enter |
 |---|---|
-| リポジトリ URL | `git@github.com:ユーザー名/リポジトリ名.git` |
-| リポジトリ名 | 任意の名前（例: `my-app`） |
-| 説明 | 空白のまま（入力不要） |
+| Repository URL | `git@github.com:your-username/repository-name.git` |
+| Repository name | Any name (e.g. `my-app`) |
+| Description | Leave blank |
 
-**リポジトリ URL の確認方法：** GitHubのリポジトリページで、緑色の **「Code」** ボタン → **「SSH」** タブをクリックすると表示されます。
+**How to find the Repository URL:** On your GitHub repository page, click the green **"Code"** button → **"SSH"** tab.
 
 ---
 
-### ステップ B｜タスクの詳細を入力する
+### Step B — Enter task details
 
-| 項目 | 入力する内容 |
+| Field | What to enter |
 |---|---|
-| タイトル | `翻訳アプリを作る` |
-| ブランチ名 | 空白のまま（入力不要） |
-| 説明 | 空白のまま（入力不要） |
+| Title | `Build a translation app` |
+| Branch name | Leave blank |
+| Description | Leave blank |
 
-> **ブランチ名について：** 空白のままにすると `xolvien/{番号}-{タイトルのスラグ}` という名前のブランチが `main` から自動で作成されます（例: `xolvien/1-translation-app`）。特定のブランチを指定したい場合のみ入力してください。
-
----
-
-### ステップ C｜作成する
-
-青いボタン **「タスクを作成」** をクリックします。
+> **About branch name:** Leaving it blank automatically creates a branch named `xolvien/{id}-{title-slug}` from `main` (e.g. `xolvien/1-translation-app`). Only fill this in if you need a specific branch name.
 
 ---
 
-## 手順9｜コンテナの準備が完了するまで待つ
+### Step C — Create
 
-タスクを作成すると、自動的にタスクの詳細画面に移動します。
+Click the blue **"Create task"** button.
 
-画面上部にタスクの状態が表示されています。以下の順番で変わります。
+---
+
+## Step 9 — Wait for the container to be ready
+
+After creating the task, you are automatically taken to the task detail screen.
+
+The task status is shown at the top of the screen and progresses like this:
 
 ```
 pending  →  initializing  →  idle
-（準備待ち）  （準備中）     （準備完了）
+(waiting)   (preparing)      (ready)
 ```
 
-**「idle」** と表示されるまで待ちます。**ページを更新する必要はありません。** 30秒〜1分で自動的に更新されます。
+Wait until **"idle"** appears. **No need to refresh the page** — it updates automatically in 30–60 seconds.
 
-画面中央の黒い領域（ログエリア）に以下のようなメッセージが表示されれば準備完了です。
+When you see the following in the log area, the container is ready:
 
 ```
 [docker] Workspace container ready: xolvien-task-1
@@ -756,478 +692,463 @@ pending  →  initializing  →  idle
 
 ---
 
-## 手順10｜Claudeに翻訳アプリを作るよう指示する
+## Step 10 — Instruct Claude to build the translation app
 
-ステータスが「idle」になると、画面右側の **「Claudeへの指示」** 入力欄が使えるようになります。
+Once the status is "idle", the **"Instruction to Claude"** input field on the right becomes active.
 
-以下の文章を**まるごとコピー**して、入力欄に貼り付けます。
+**Copy and paste** the following text into the input field:
 
 ```
-日本語と英語を相互に翻訳できる、シンプルな1ページのWebアプリを作ってください。
+Please build a simple single-page web app that translates between Japanese and English.
 ```
 
-貼り付けたら、青いボタン **「送信」** をクリックします。
+Then click the blue **"Send"** button.
 
 ---
 
-## 手順11｜Claudeの質問に答える（要件確認フェーズ）
+## Step 11 — Answer Claude's questions (requirement clarification phase)
 
-「送信」をクリックすると、Claude が要件の不明点を質問してきます。
-
-```
-┌──────────────────────────────────────────────┐
-│ Claude                                       │
-│  以下の点を確認させてください。               │
-│  1. 使用するプログラミング言語・フレームワーク │
-│     は何ですか？                             │
-│  2. 翻訳APIはどれを使いますか？               │
-│  3. デザインの要望はありますか？              │
-└──────────────────────────────────────────────┘
-```
-
-質問が表示されたら、入力欄に回答を入力して **「回答を送信」** をクリックします。**Enter キーでは送信されません**（改行になります）。
+After clicking "Send", Claude will ask clarifying questions:
 
 ```
-1. HTML/CSS/JavaScript のみ（フレームワーク不要）
-2. https://api.mymemory.translated.net を使ってください（APIキー不要）
-3. シンプルで見やすければOKです
+┌──────────────────────────────────────────────────────┐
+│ Claude                                               │
+│  Please confirm the following:                       │
+│  1. What programming language / framework to use?    │
+│  2. Which translation API should I use?              │
+│  3. Any design preferences?                          │
+└──────────────────────────────────────────────────────┘
 ```
 
-Claude が続けて質問することもあります。同様に回答してください。
+Type your answers in the input field and click **"Send Answer"**. **Enter key does not send** (it inserts a newline).
 
-要件が十分に揃ったと判断したら、**「次へ進む」** ボタンをクリックしてプロンプト生成フェーズへ進みます。
+```
+1. Plain HTML/CSS/JavaScript (no framework)
+2. Please use https://api.mymemory.translated.net (no API key needed)
+3. Simple and clean is fine
+```
+
+Claude may ask follow-up questions. Answer them the same way.
+
+When Claude has enough information, click **"Next"** to move to the prompt generation phase.
 
 ---
 
-## 手順12｜プロンプトを確認して実行する
+## Step 12 — Review the prompt and execute
 
-「次へ進む」をクリックすると Claude がプロンプトを生成し、チャット欄に表示されます。
+After clicking "Next", Claude generates a prompt and displays it in the chat panel:
 
 ```
-┌──────────────────────────────────────────────┐
-│ Generated Prompt                             │
-│  translator.html を作成してください。           │
-│  - 日本語入力欄（id="japanese"）               │
-│  - 英語入力欄（id="english"）                  │
-│  - 翻訳API: https://api.mymemory.translated.net│
-│  ...（詳細な実装指示）                         │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│ Generated Prompt                                     │
+│  Create translator.html.                             │
+│  - Japanese input field (id="japanese")              │
+│  - English input field (id="english")                │
+│  - Translation API: https://api.mymemory.translated.net│
+│  ...                                                 │
+└──────────────────────────────────────────────────────┘
 ```
 
-プロンプトを確認して問題なければ、入力欄にフィードバックを入力せずそのまま **「確定して実行」** をクリックします。
+If the prompt looks right, click **"Confirm & Execute"** without entering anything in the feedback field.
 
-内容を修正したい場合は、入力欄に「〇〇も追加してほしい」のように指摘を書いてから **「再生成」** をクリックします。何度でも繰り返せます。
+To revise, type your feedback (e.g. "Please also add X") and click **"Regenerate"**. You can repeat this as many times as you want.
 
 ---
 
-## 手順13｜生成が完了するまで待つ
+## Step 13 — Wait for generation to complete
 
-「確定して実行」をクリックすると、黒いログエリアに Claude の出力がリアルタイムで表示されます。
+After clicking "Confirm & Execute", Claude's output streams into the log area in real time:
 
 ```
-[SYSTEM] 指示を受け付けました
+[SYSTEM] Instruction received
 
-[Claude] Claude Code CLIを実行しています...
+[Claude] Running Claude Code CLI...
 
-（ここに Claude の思考・作業ログが流れてきます）
-（ファイルの読み込み、コード生成、ファイルへの書き込みが自動で行われます）
+(Claude's thinking and work logs appear here)
+(File reading, code generation, and file writing happen automatically)
 
-[GIT] 変更をコミットしています...
-[main abc1234] 日本語と英語を相互に翻訳できる、シンプルな1ページのWebアプリを作ってください。
+[GIT] Committing changes...
+[main abc1234] Please build a simple single-page web app...
 
-[SYSTEM] 完了しました
+[SYSTEM] Done
 ```
 
-**「完了しました」** と表示され、ステータスが再び **「idle」** に戻ったら生成完了です。
-
-生成・コミットまで自動で行われます。1〜3分かかります。その間はそのまま待っていてください。
+When **"Done"** appears and the status returns to **"idle"**, generation is complete.
+Everything including the commit is done automatically. Allow 1–3 minutes.
 
 ---
 
-## 手順13-2｜テストケースを確認・承認する
+## Step 13-2 — Review and approve test cases
 
-実装が完了すると、右パネル上部のステップバーが「テストケース」ステップに移動し、テストケース確認画面が表示されます。
-
-```
-┌──────────────────────────────────────────────┐
-│ テストケース確認                               │
-│ — 承認後にテストコードを生成・実行します        │
-│                                              │
-│ ## テストケース一覧                           │
-│                                              │
-│ | 対象画面 | テスト項目 | 操作方法 | 期待動作 │
-│ |---------|----------|---------|---------|   │
-│ | 翻訳画面 | 日英翻訳  | テキスト入力→翻訳ボタン | 英語が表示される |
-│ | 翻訳画面 | 空欄送信  | 入力欄が空のまま翻訳 | エラーメッセージ表示 |
-│ ...                                         │
-│                                              │
-│  [修正を依頼]  [スキップ]  [承認してテスト実行] │
-└──────────────────────────────────────────────┘
-```
-
-**テストケースの内容を確認します。**
-
-- **問題なければ**：**「承認してテスト実行」** をクリックします
-- **Claude に修正を依頼したい場合**：入力欄に修正してほしい内容を入力してから **「修正を依頼」** をクリックしてください。Claude がテストケースを再生成します
-- **テストをスキップしたい場合**：**「スキップ」** をクリックします（テストなしで次へ進みます）
-
-「承認してテスト実行」をクリックすると、Claude が自動的に以下を行います。
-
-1. テストコードを生成してコンテナ内に保存
-2. 必要な依存パッケージをインストール
-3. テストを実行
-4. 失敗した場合は自動修正（最大3回）
-
-ログエリアにテストの進行状況がリアルタイムで表示されます。
+After implementation, the step bar moves to the "Unit Test" step. Click **"Generate test cases"** to have Claude generate test cases.
 
 ```
-[TEST] テストコードを生成しています...
-（Claude がテストコードを生成します）
-[TEST] テストを実行しています: npm test -- --watchAll=false
-（テスト結果が表示されます）
-[TEST] ✅ テストがパスしました
+┌──────────────────────────────────────────────────────┐
+│ Test Cases                                           │
+│ — Approve to generate and run test code              │
+│                                                      │
+│ | Target screen | Test item | Operation | Expected  │
+│ |----------------|----------|-----------|---------|   │
+│ | Translation    | EN→JA    | Type text → Translate | Japanese appears |
+│ | Translation    | Empty    | Submit with empty field | Error shown |
+│ ...                                                  │
+│                                                      │
+│  [Request revision]  [Skip]  [Approve & run tests]   │
+└──────────────────────────────────────────────────────┘
+```
+
+**Review the test cases.**
+
+- **If they look good**: Click **"Approve & run tests"**.
+- **To request revisions**: Type your request in the input field and click **"Request revision"**. Claude will regenerate the test cases.
+- **To skip testing**: Click **"Skip"**.
+
+After approving, Claude automatically:
+
+1. Generates test code and saves it in the container
+2. Installs required dependencies
+3. Runs the tests
+4. Auto-fixes on failure (up to 3 attempts)
+
+Test progress streams into the log area in real time:
+
+```
+[TEST] Generating test code...
+[TEST] Running tests: npm test -- --watchAll=false
+[TEST] ✅ Tests passed
 [GIT] test: add unit tests (pass)
-[TEST] レポートを保存しました: /workspace/repo/test-reports/test-report-...-unit.md
-[SYSTEM] テスト完了: 19 passed, 0 failed
+[TEST] Report saved: /workspace/repo/test-reports/test-report-...-unit.md
+[SYSTEM] Tests complete: 19 passed, 0 failed
 ```
 
-テストに失敗した場合は自動修正が走ります。最大3回修正を試みて、それでも解決しない場合はその旨が表示されます。
+If tests fail, auto-fix runs. After 3 failed attempts, you'll be notified.
 
 ---
 
-## 手順13-3｜実装を確認して承認する
+## Step 13-3 — Review and approve the implementation
 
-テストが完了すると、ステップバーが「実装確認」に移動し、右パネルに実装確認画面が表示されます。
+After tests complete, the step bar moves to "Review" and the review screen appears:
 
 ```
-┌──────────────────────────────────────────────┐
-│ 実装確認                                      │
-│ — テスト完了。実装を確認してください            │
-│                                              │
-│ 実行されたプロンプト                           │
-│  translator.html を作成してください...          │
-│                                              │
-│ 承認済みテストケース                           │
-│  | 対象画面 | テスト項目 | ...               │
-│                                              │
-│ テスト結果と変更内容をログで確認してください。  │
-│ 問題なければ「承認」、修正が必要なら「差し戻し」 │
-│ を選択してください。                           │
-│                                              │
-│  [差し戻し]  [承認]                           │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│ Review                                               │
+│ — Tests passed. Please review the implementation.   │
+│                                                      │
+│ Executed prompt                                      │
+│  Create translator.html...                           │
+│                                                      │
+│ Approved test cases                                  │
+│  | Target screen | Test item | ...                  │
+│                                                      │
+│ Review the test results and changes in the log.     │
+│ Click "Approve" if satisfied, or "Send back"        │
+│ if revisions are needed.                            │
+│                                                      │
+│  [Send back]  [Approve]                              │
+└──────────────────────────────────────────────────────┘
 ```
 
-左のログエリアでテスト結果と変更内容を確認します。
+Review the test results and changes in the log area on the left.
 
-- **問題なければ**：**「承認」** をクリックします → 次の GitPush へ進みます
-- **修正が必要な場合**：**「差し戻し」** をクリックします → 指示入力画面に戻ります（前回の指示が入力欄に復元されます）
+- **If everything looks good**: Click **"Approve"** → proceed to Git Push.
+- **If revisions are needed**: Click **"Send back"** → returns to the instruction input screen (previous instruction is restored).
 
-> **再開について：** タスク詳細画面を開き直すと、ステップバーから前回の状態を確認し、任意のステップに移動できます。詳細は「[テストの途中から再開する](#テストの途中から再開する)」を参照してください。
+> **Resuming**: If you reopen the task detail screen, the step bar shows your previous state and you can navigate to any completed step. See [Resuming from a previous session](#resuming-from-a-previous-session).
 
 ---
 
-## 手順14｜GitHubへ保存する
+## Step 14 — Push to GitHub
 
-生成・コミットまでは自動で行われています。GitHubへ送信（push）するだけです。
+Code generation and commits happen automatically. All that's left is to push to GitHub.
 
-タスク詳細画面で **「Git Push」** ボタンをクリックします。
+Click the **"Git Push"** button on the task detail screen.
 
-ログエリアに以下のように表示されれば成功です。
+When you see the following in the log area, the push was successful:
 
 ```
-[GIT] ブランチ 'xolvien/1-translation-app' を push しています...
-To git@github.com:ユーザー名/リポジトリ名.git
+[GIT] Pushing branch 'xolvien/1-translation-app'...
+To git@github.com:your-username/repository-name.git
  * [new branch]      xolvien/1-translation-app -> xolvien/1-translation-app
-Branch 'xolvien/1-translation-app' set up to track remote branch 'xolvien/1-translation-app' from 'origin'.
-[GIT] push 完了
+[GIT] Push complete
 ```
 
-GitHubのリポジトリページを開くと `xolvien/1-translation-app` ブランチに `translator.html` が保存されています。
+Open your GitHub repository page and you'll see `translator.html` on the `xolvien/1-translation-app` branch.
 
-> **mainブランチへの反映：** GitHubのリポジトリページで **「Compare & pull request」** ボタンをクリックしてプルリクエストを作成し、mainブランチにマージしてください。
+> **Merging to main**: On your GitHub repository page, click **"Compare & pull request"** to create a pull request and merge it into main.
 
 ---
 
-## 手順15｜翻訳アプリを手元で確認する
+## Step 15 — Verify the translation app locally
 
-生成した `translator.html` をローカルで確認したい場合は以下で取り出せます。
+To open the generated `translator.html` locally:
 
-**Windowsの場合：**
+**Windows:**
 ```bash
 docker cp xolvien-task-1:/workspace/repo/translator.html ~/translator.html
 explorer.exe ~/translator.html
 ```
 
-**Macの場合：**
+**Mac:**
 ```bash
 docker cp xolvien-task-1:/workspace/repo/translator.html ~/Desktop/translator.html
 ```
 
-### 動作確認
+### Test it
 
-**日本語 → 英語の翻訳：**
-1. 上側の入力欄に `こんにちは、世界` と入力します
-2. **「英語に翻訳」** ボタンをクリックします
-3. 下側の欄に `Hello, World` と表示されれば成功です
+**Japanese → English:**
+1. Type `こんにちは、世界` in the top input field.
+2. Click **"Translate to English"**.
+3. If `Hello, World` appears in the bottom field, it works.
 
-**英語 → 日本語の翻訳：**
-1. 下側の入力欄に `I love programming` と入力します
-2. **「日本語に翻訳」** ボタンをクリックします
-3. 上側に日本語の翻訳結果が表示されれば成功です
-
----
-
-# 完成おめでとうございます！
-
-これで Xolvien を使って翻訳アプリを作ることができました。
+**English → Japanese:**
+1. Type `I love programming` in the bottom input field.
+2. Click **"Translate to Japanese"**.
+3. If a Japanese translation appears in the top field, it works.
 
 ---
 
-# 2回目以降の使い方
+# Congratulations!
 
-2回目以降の起動と作業の流れをまとめます。
-
-## 起動する（毎回）
-
-「第2部：起動する」と同じ手順です。
-
-1. ターミナル A でバックエンドを起動する
-2. ターミナル B でフロントエンドを起動する
-3. ブラウザで `http://localhost:5173` を開く
+You've built a translation app using Xolvien.
 
 ---
 
-## 新しい作業を始める
+# Continuing from the Second Session
 
-前回作ったタスクは画面に残っています。**新しい作業をするたびに新しいタスクを作ります。**
+## Starting up (every session)
 
-**同じプログラムに機能追加・修正をする場合（既存リポジトリへの追加）：**
+Same steps as Part 2.
 
-1. **「新しいタスク」** をクリック
-2. リポジトリ：**「既存のリポジトリを選択」** タブを開き、リストから選ぶ
-3. タイトルに作業内容を入力（例：`エラー処理を追加する`）
-4. ブランチ名は空白のまま → `main` から新しいブランチが自動で作られる
-5. **「タスクを作成」** をクリック
-
-**新しいプログラムを作る場合：**
-
-1. **GitHub でリポジトリを新規作成する**（まだない場合）
-2. **「新しいタスク」** をクリック
-3. リポジトリ：**「新しいリポジトリを追加」** タブを開き、GitHub の SSH URL を入力して登録
-4. タイトルに作業内容を入力
-5. **「タスクを作成」** をクリック
-
-あとは手順9〜14と同じです。
+1. Start the backend in Terminal A
+2. Start the frontend in Terminal B
+3. Open `http://localhost:5173` in a browser
 
 ---
 
-## 過去のタスクを続ける
+## Starting new work
 
-ダッシュボード（トップ画面）にタスクの一覧が表示されています。タスクをクリックするとタスク詳細画面に移動し、続きの指示を出せます。
+Previous tasks remain on the screen. **Create a new task for each new piece of work.**
 
-ただし、**Xolvien を再起動するとコンテナも再起動されます**。再起動後に過去のタスクのコンテナが停止している場合は、タスクを削除して作り直してください。
+**To add features or fix an existing program:**
+
+1. Click **"New task"**
+2. Repository: open the **"Select existing repository"** tab and choose from the list
+3. Enter a title describing the work (e.g. `Add error handling`)
+4. Leave branch name blank → a new branch is automatically created from `main`
+5. Click **"Create task"**
+
+**To build a new program:**
+
+1. **Create a new repository on GitHub** (if one doesn't exist yet)
+2. Click **"New task"**
+3. Repository: open **"Add new repository"** tab and enter the GitHub SSH URL
+4. Enter a title
+5. Click **"Create task"**
+
+Then follow Steps 9–14 as before.
 
 ---
 
-## テストの途中から再開する
+## Resuming a past task
 
-タスク詳細画面を開くと、前回のテスト実行状態が自動的に検出されます。
-右パネルの上部に **ステップバー** が表示され、現在どのステップにいるかが一目でわかります。
+The task list is shown on the dashboard (home screen). Click a task to open the task detail screen and continue giving instructions.
+
+Note: **Restarting Xolvien also restarts containers.** If a past task's container is stopped after restarting, delete the task and recreate it.
+
+---
+
+## Resuming from a previous session
+
+When you open the task detail screen, the previous test execution state is automatically detected.
+The **step bar** at the top of the control panel shows which step you're on at a glance:
 
 ```
-実装 → テストケース → 単体テスト → 結合テスト* → E2Eテスト* → 実装確認
- ✅         ✅            ✅
+Implement → Unit Test → Integration Test* → E2E Test* → Review
+    ✅           ✅             ✅
 ```
 
-各ステップのアイコン・色の意味：
+Step bar icon/color meanings:
 
-| 表示 | 意味 |
+| Display | Meaning |
 |---|---|
-| ✅ 緑（合格件数付き） | 完了済み（テスト成功） |
-| ❌ 赤 | 完了済み（テスト失敗） |
-| 青（太字） | 現在のステップ |
-| グレー | 未実施 |
-| グレー斜体（\*付き） | 未実装の将来ステップ |
+| ✅ green (with pass count) | Completed (tests passed) |
+| ❌ red | Completed (tests failed) |
+| Blue (bold) | Current step |
+| Grey | Not yet started |
+| Grey italic (* suffix) | Future unimplemented step |
 
-**完了済みのステップをクリック** するとそのステップの画面に切り替えられます。
-たとえば「テストケース」をクリックすると、前回生成されたテストケースを確認・編集できます。
-「実装」をクリックすると、前回の指示内容が入力欄に復元された状態で指示入力画面に戻ります。
+**Click any completed step** to switch to that screen.
+For example, click "Unit Test" to review or re-edit the previously generated test cases.
+Click "Implement" to return to the instruction input screen with your previous instruction restored.
 
-ページを開いた時点で、Xolvien は完了済みの最後のステップの次の画面に自動で移動します。
+On page load, Xolvien automatically moves to the screen after the last completed step.
 
-### バックエンド再起動後・アップデート後に再開する場合
+### Resuming after backend restart or update
 
-Xolvien を `docker compose down` で停止してから再起動した場合や、アップデート後にバックエンドを再起動した場合は、以下の手順で再開してください。
+If you stopped Xolvien with `docker compose down` and restarted, or restarted the backend after an update:
 
-1. **バックエンドを再起動する**（上記「ターミナル A：バックエンドを起動する」の手順を実施）
-   - アップデートを反映する場合は `alembic upgrade head` を先に実行する
-2. **ブラウザで再読み込みする**（F5 または Ctrl+R）
-3. ダッシュボードから対象のタスクをクリックしてタスク詳細画面を開く
-4. ステップバーから続きのステップを選択する
+1. **Restart the backend** (follow the "Terminal A: Start the backend" steps above).
+   - If applying an update, run `alembic upgrade head` first.
+2. **Reload the browser** (F5 or Ctrl+R).
+3. Click the target task on the dashboard to open the task detail screen.
+4. Select the step to continue from in the step bar.
 
-**「単体テスト」を選択したのにテストケースが表示されない場合：**
+**If "Unit Test" is selected but test cases are not displayed:**
 
-アップデートによりテストケースの保存形式が変わったため、以前のタスクでは「テストケースがまだ生成されていません」と表示されることがあります。
-
-「**テストケースを生成**」ボタンが表示されるので、クリックするとテストケース生成から再開できます（実装のやり直しは不要です）。
-
----
-
-## 別の指示を出す
-
-同じタスクに対して何度でも指示を出せます。実装確認画面で「承認」を押すと指示入力画面に戻るので、新しい指示を入力して同じフローを繰り返します。
-
-```
-タスク「翻訳アプリを作る」
-  └─ 指示1「translator.html を作って」
-       → 実行 → テストケース確認 → テスト実行 → 実装確認 → 承認 → コミット
-  └─ 指示2「デザインを改善して」
-       → 実行 → テストケース確認 → テスト実行 → 実装確認 → 承認 → コミット
-  └─ 指示3「エラー処理を追加して」
-       → 実行 → テストケース確認 → テスト実行 → 実装確認 → 承認 → コミット
-```
-
-すべての変更は同じブランチに積み重なっていきます。まとめて **「Git Push」** でGitHubに保存できます。
+If the test case storage format changed in an update, previous tasks may show "No test cases generated yet."
+A **"Generate test cases"** button will appear — click it to restart from test case generation. No need to redo the implementation.
 
 ---
 
-# 毎回の終了方法
+## Sending additional instructions
 
-1. ターミナル A で `Ctrl + C` を押します（`Shutdown...` と表示されてバックエンドが停止します）
-2. ターミナル B で `Ctrl + C` を押します（フロントエンドが停止します）
-3. 以下を実行してデータベースを停止します
+You can send instructions to the same task as many times as you want. After clicking "Approve" on the review screen, you return to the instruction input screen where you can enter a new instruction and repeat the whole flow.
+
+```
+Task "Build translation app"
+  └─ Instruction 1: "Create translator.html"
+       → Execute → Review test cases → Run tests → Review → Approve → Commit
+  └─ Instruction 2: "Improve the design"
+       → Execute → Review test cases → Run tests → Review → Approve → Commit
+  └─ Instruction 3: "Add error handling"
+       → Execute → Review test cases → Run tests → Review → Approve → Commit
+```
+
+All changes accumulate on the same branch. You can push everything at once with **"Git Push"**.
+
+---
+
+# Shutting Down
+
+1. Press `Ctrl + C` in Terminal A to stop the backend.
+2. Press `Ctrl + C` in Terminal B to stop the frontend.
+3. Stop the database:
 
 ```bash
-cd xolvien   # クローンしたディレクトリ
+cd xolvien   # the directory you cloned into
 docker compose down
 ```
 
-以下のように表示されれば OK です。
+Done when you see:
 
 ```
 [+] Running 2/2
- ✔ Container xolvien-db  Removed                                                                    0.3s
- ✔ Network xolvien_default  Removed                                                                 0.1s
+ ✔ Container xolvien-db  Removed
+ ✔ Network xolvien_default  Removed
 ```
 
 ---
 
-# トラブルシューティング
+# Troubleshooting
 
-## ステータスが「failed」になった
+## Status shows "failed"
 
-ログエリアにエラーの詳細が表示されています。
+Check the log area for error details.
 
-**「Failed to clone repository」と表示されている場合：**
-以下を確認してください。
+**"Failed to clone repository":**
 
-- リポジトリ URL が `git@github.com:ユーザー名/リポジトリ名.git` の形式になっているか
-- GitHubにSSH鍵が登録されているか（ターミナルで `ssh -T git@github.com` を実行し、`Hi username!` と表示されれば認証済み）
+- Verify the repository URL is in `git@github.com:username/repo-name.git` format.
+- Verify your SSH key is registered on GitHub (run `ssh -T git@github.com` — `Hi username!` means it works).
 
-確認後、タスクを削除して作り直してください。タスクの削除は、ダッシュボード画面（「← 戻る」をクリック）でタスクカードの右にある赤い **「削除」** ボタンをクリックします。
+Delete the task and recreate it. To delete: click the red **"Delete"** button on the task card in the dashboard.
 
-**「Failed to initialize container」と表示されている場合：**
-Docker ワークスペースイメージがビルドされていません。手順6を実行してください。
+**"Failed to initialize container":**
+
+The Docker workspace image hasn't been built. Run Step 6.
 
 ---
 
-## ステータスが「pending」のままで変わらない
+## Status stays "pending" and never changes
 
-バックエンドが起動していない可能性があります。ターミナル A に `Application startup complete.` と表示されているか確認します。
+The backend may not be running. Check Terminal A for `Application startup complete.`
 
-表示されていない場合はターミナル A で以下を実行して再起動します。
+If it's not there, restart the backend:
 
 ```bash
-cd xolvien/backend   # クローンしたディレクトリ
+cd xolvien/backend
 source venv/bin/activate
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ---
 
-## 「送信」ボタンがグレーになっていて押せない
+## The "Send" button is grey and can't be clicked
 
-「送信」ボタンはステータスが **「idle」** かつ指示欄に文字が入力されているときだけ押せます。
+The "Send" button is only active when the status is **"idle"** and there's text in the input field.
 
-| 表示されているステータス | 意味 | 対処 |
+| Status shown | Meaning | Action |
 |---|---|---|
-| `pending` | 準備待ち | そのまま待つ |
-| `initializing` | 準備中 | そのまま待つ |
-| `running` | 実行中 | 完了を待つ |
-| `failed` | 失敗 | 上の対処法を確認 |
+| `pending` | Waiting | Wait |
+| `initializing` | Preparing | Wait |
+| `running` | Executing | Wait for completion |
+| `failed` | Failed | See troubleshooting above |
 
-「送信」後にボタンが「回答を送信」「次へ進む」に変わります。これは要件確認フェーズに入ったことを示します。Claude の質問が表示されるまでそのまま待ってください。
+After clicking "Send", the button changes to "Send Answer" / "Next" — this means the requirement clarification phase has started. Wait for Claude's questions to appear.
 
 ---
 
-## `docker cp` でエラーが出た
+## Error on `docker cp`
 
-**「No such container」と表示された場合：**
-コンテナ名が違います。以下でコンテナ名を確認します。
+**"No such container":**
+
+The container name is wrong. Find it with:
 
 ```bash
 docker ps --filter "name=xolvien-task"
 ```
 
-以下のように表示されます。
+You'll see something like:
 
 ```
 CONTAINER ID   IMAGE                      COMMAND                NAMES
 abc123def456   xolvien-workspace:latest  "/bin/sh -c 'tail -f…" xolvien-task-1
 ```
 
-`NAMES` 列に表示された名前（例：`xolvien-task-1`）を使って `docker cp` を実行します。
+Use the name in the `NAMES` column (e.g. `xolvien-task-1`) in your `docker cp` command.
 
 ---
 
-## Claude が `translator.html` を生成しなかった
+## Claude didn't generate `translator.html`
 
-指示の解釈によっては別のファイル名で生成されることがあります。コンテナの中を確認します。
+Depending on how the instruction was interpreted, the file may have a different name. Check the container:
 
-（`xolvien-task-1` は実際のコンテナ名に変えてください）
+(Replace `xolvien-task-1` with your actual container name)
 
 ```bash
 docker exec xolvien-task-1 ls /workspace/repo/
 ```
 
-以下のように表示されます。
-
-```
-README  translator.html
-```
-
-`.html` のファイルを探して、そのファイル名で `docker cp` を実行します。
+Find the `.html` file and use that name in your `docker cp` command.
 
 ---
 
-## Git Push ボタンを押してもエラーになる
+## Git Push fails with an error
 
-ログエリアにエラーの詳細が表示されています。
+**"Permission denied (publickey)":**
 
-**「Permission denied (publickey)」と表示された場合：**
-SSH鍵の認証に失敗しています。ホストマシンで以下を確認します。
+SSH key authentication failed. Verify on your host:
 
 ```bash
 ssh -T git@github.com
 ```
 
-`Hi username!` と表示されれば認証済みです。表示されない場合はSSH鍵の設定を確認してください。
+If `Hi username!` appears, you're authenticated. If not, check your SSH key setup.
 
-**「rejected」または「failed to push」と表示された場合：**
-別の場所から同じブランチにpushされた可能性があります。タスクを削除して作り直してください。
+**"rejected" or "failed to push":**
+
+Someone else may have pushed to the same branch. Delete the task and recreate it.
 
 ---
 
-## Claude Code CLI の認証エラーが表示された
+## Claude Code CLI authentication error in logs
 
-ログエリアに認証関連のエラーが表示される場合、ホストの Claude Code CLI の認証情報が問題の可能性があります。
+If authentication-related errors appear in the log area, the host Claude Code CLI credentials may be the issue.
 
-ホストマシンで以下を確認します。
+Verify on your host:
 
 ```bash
-claude --version        # バージョンが表示されるか確認
-ls ~/.claude/           # 認証情報ファイルが存在するか確認
+claude --version        # check that a version number appears
+ls ~/.claude/           # check that credential files exist
 ```
 
-認証情報がない場合は `claude` コマンドを実行してログインし直してください。
+If credentials are missing, run `claude` and log in again.

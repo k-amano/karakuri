@@ -1,337 +1,326 @@
-# 改修計画
+# Roadmap
 
-**最終更新**: 2026-05-03
+**Last updated**: 2026-05-03
 
-現在実装済みの機能は `spec.md` を参照。
-
----
-
-## 優先度: 高（動作品質・致命的な問題）
-
-### ~~H1: 文字化けの修正~~ ✅ 対応済み（2026-04-19）
-
-- `docker_service.py` の `execute_command_stream()` で `codecs.getincrementaldecoder` を使用するよう修正
-- チャンク境界でのマルチバイト文字分割を正しく処理
-
-### ~~H2: テスト結果サマリーの表示~~ ✅ 対応済み（2026-04-21）
-
-- 実装確認パネル（`reviewing`）にテスト結果サマリーをバナー表示
-- 成功時は緑背景、失敗時は赤背景で件数を強調表示
-- ページロード時の再開でも DB から取得したサマリーを表示
-
-### ~~H3: テストケース修正UIの改善~~ ✅ 対応済み（2026-04-21）
-
-- `window.prompt` を廃止
-- 「修正を依頼」ボタンでパネル内にインライン入力欄（テキストエリア + 送信 / キャンセルボタン）をトグル表示
-- 送信するとテストケースを再生成
+See `spec.md` for currently implemented features.
 
 ---
 
-## コードレビュー指摘事項（2026-04-21）
+## Priority: High (critical quality issues)
 
-外部エージェントによるコードレビュー結果を記録する。
+### ~~H1: Mojibake (character corruption)~~ ✅ Fixed (2026-04-19)
 
-### ~~CR-1: `generate_test_cases()` をエージェントモードに変更~~ ✅ 対応済み（2026-04-21）
+- Changed `execute_command_stream()` in `docker_service.py` to use `codecs.getincrementaldecoder`.
+- Multi-byte characters split at chunk boundaries are now correctly reassembled before decoding.
 
-- `_RUNNER_SCRIPT` → `_RUNNER_SCRIPT_AGENT` に変更。Claude 自身がリポジトリの関連ファイルを読んでからテストケースを生成するようになった
+### ~~H2: Test result summary not displayed~~ ✅ Fixed (2026-04-21)
 
-### ~~CR-2: `_detect_test_command()` の判定ロジック改善~~ ✅ 対応済み（2026-04-21）
+- Added test result summary banner to the review panel (`reviewing`).
+- Shows passed / failed counts with green / red backgrounds.
+- Summary is also restored from DB on page reload.
 
-- `package.json` チェックを Python チェックより先に行うよう判定順序を変更
-- `requirements.txt` の存在だけでは Python と判定しなくなった（`pyproject.toml` / `setup.py` を優先）
+### ~~H3: Test case revision UI broken~~ ✅ Fixed (2026-04-21)
 
-### CR-3: `generate_prompt()` のエージェントモードによる過剰権限 ❌ 不採用
-
-- **指摘**: プロンプト生成フェーズで `_RUNNER_SCRIPT_AGENT`（ファイル書き込み可能）を使っており、意図せずファイルが変更されるリスクがある
-- **不採用の理由**: 対象プロジェクトのファイル数が多い場合、プロンプト生成のために Claude がリポジトリ内の関連ファイルを自分で選択して読む必要があり、エージェントモードが必須。`-p` モードに変更するとファイルを読めなくなり大規模プロジェクトで機能しなくなる。この設計判断は `spec.md` 6.5節にも記載済み。リスクは認識しているが、代替手段がないため現状維持とする
-
-### CR-4: Dockerfile の Node.js バージョン ❌ 不採用（対応済み）
-
-- **指摘**: Node.js 18 は EOL のため 20 に変更すべき
-- **不採用の理由**: すでに Node.js 20 に対応済み（`docker/workspace/Dockerfile` 16〜18行目）。指摘時点では未確認だったと推定される
+- Replaced `window.prompt` with an inline input (textarea + Send / Cancel buttons) toggled by the "Request revision" button.
+- Submitting regenerates the test cases.
 
 ---
 
-## 優先度: 中（機能上の問題）
+## Code Review Findings (2026-04-21)
 
-### ~~M1: テスト種別の表示~~ ✅ 対応済み（2026-04-22）
+Results from an external agent code review.
 
-- `runningTestType` state（unit / integration / e2e）を追加
-- 実行中バナーに「単体テストを実行しています...」「結合テストを実行しています...」のように種別を表示
-- 将来の結合・E2E テスト実装時は `setRunningTestType('integration')` / `'e2e'` をセットするだけで対応可能
+### ~~CR-1: Switch `generate_test_cases()` to agent mode~~ ✅ Fixed (2026-04-21)
 
-### ~~M2: 処理中の進捗表示~~ ✅ 対応済み（2026-04-23）
+- Changed `_RUNNER_SCRIPT` → `_RUNNER_SCRIPT_AGENT`. Claude now reads relevant repo files before generating test cases.
 
-- **当初案**: フェーズ開始時にバナーテキストを更新する（「テストコード生成中」「テスト実行中」「自動修正中 1/3」）
-- **ユーザー指摘**: 点滅・グルグルは不要。「何件中何件実行しているか」という具体的な進捗情報がほしい
-- **実装**: ストリームの各チャンクを逐次解析し、pytest（`PASSED` / `FAILED` / ドット形式）および Jest（`✓` / `✕`）のパターンを検出してリアルタイムにカウント
-  - バナー表示例：「テストを実行中 (12件完了 / 2件失敗)」
-  - 自動修正フェーズ：「自動修正中 1/3」
-  - フェーズラベルは `testPhaseLabel` state で管理。テスト開始時にカウンターをリセット
+### ~~CR-2: Improve `_detect_test_command()` detection logic~~ ✅ Fixed (2026-04-21)
 
-### ~~M3: テストケースの構造化・DB管理~~ ✅ 対応済み（2026-04-23）
+- `package.json` check now runs before the Python check.
+- `requirements.txt` alone no longer implies Python (`pyproject.toml` / `setup.py` take priority).
 
-- **ユーザー指摘**: 「テストケースにIDを振って管理する必要がある」「具体的入力値・期待出力値がないと追試できない」「テストケースと別のテストを行うのでは何のためのテストケースか分からない」
-- **設計**: `test_case_items`（仕様・TC-ID付き）と `test_case_results`（実行ごとの結果）を分離したDBテーブルを新設
-- `generate_test_cases()` が JSON 配列（TC-ID / 対象画面 / テスト項目 / 操作（具体的入力値） / 期待出力値 / function_name）を出力し、`test_case_items` テーブルに保存
-- `run_unit_tests()` が `test_case_items` の `function_name` でテスト関数を生成させ、実行後に `test_case_results`（実際の出力・判定・実行日時）として保存
-- テストケース確認パネル：Markdownテキストエリアからテーブル表示（TC-ID / 対象画面 / テスト項目 / 操作 / 期待出力）に刷新
-- 実装確認パネル：テスト結果集計表を DB の `test_case_results` から表示（TC-ID / テスト項目 / 期待出力 / 実際の出力 / 判定 / 実行日時）
-- 新APIエンドポイント: `GET /tasks/{id}/test-cases`、`GET /tasks/{id}/test-cases/{item_id}/results`
+### CR-3: `generate_prompt()` runs with excess permissions in agent mode ❌ Won't fix
 
-### ~~M4: テスト結果の集計表~~ ✅ 対応済み（2026-04-22）
+- **Finding**: `generate_prompt()` uses `_RUNNER_SCRIPT_AGENT` (file writes allowed), risking unintended file modifications.
+- **Decision**: For large projects, Claude must be able to read relevant files to generate an accurate prompt — agent mode is required. Switching to `-p` mode would break this capability. Risk is acknowledged; no alternative available. Design decision documented in `spec.md` §6.5.
 
-- pytest verbose / short / Jest（✓/✕）形式の出力を行ごとに解析し、テスト名・結果アイコンの集計表を生成
-- 実装確認パネルにインライン表示（`<table>` 要素）
-- コンテナ内の Markdown テストレポート（`/workspace/repo/test-reports/`）にも `## テスト結果集計表` セクションとして出力
-- ページリロード時も DB の `TestRun.output` から再構築して表示
+### CR-4: Dockerfile Node.js version ❌ N/A (already fixed)
+
+- **Finding**: Node.js 18 is EOL; should upgrade to 20.
+- **Decision**: Already on Node.js 20 (`docker/workspace/Dockerfile` lines 16–18). Finding was based on an outdated read.
 
 ---
 
-## 優先度: 低（UX改善）
+## Priority: Medium (functional issues)
 
-### ~~L1: 右ペインのチャット型レイアウト刷新~~ ✅ 対応済み（2026-04-26）
+### ~~M1: Test type not shown in UI~~ ✅ Fixed (2026-04-22)
 
-- **ユーザー指摘**: レスポンスが画面に残らないGUIではエラー時に何が起こったか分からずテストが困難。ずっと表示し続けてスクロールする設計が必須（優先度は高）
-- **実装**: `ChatEntry` union type による追記のみのチャット履歴。各フェーズ（要件確認Q&A・プロンプト生成・実装・テストケース・テスト結果・実装確認・エラー）がカードとして永続的に残る。入力エリアは常に下部固定、clarify中はEnter送信モードに自動切替
-- **追加対応（2026-04-26）**: アクションボタンをチャット履歴カード内から入力エリアのフッター下部に移動。`renderActionButtons()` により `selectedStep` に応じてボタンセットを動的に切り替え。単体テスト・実装確認ステップ選択時はテキストエリアを disabled 表示に切り替え。「実装」ステップクリック時に入力欄への自動挿入を廃止。システム通知はチャット履歴末尾の `info` エントリとして表示
+- Added `runningTestType` state (unit / integration / e2e).
+- Running banner now shows type-specific text: "Running unit tests…" / "Running integration tests…" etc.
 
----
+### ~~M2: No progress indication during processing~~ ✅ Fixed (2026-04-23)
 
-## バグ修正ログ（2026-04-26）
+- **Original plan**: Update banner text when each phase starts ("Generating test code", "Running tests", "Auto-fixing 1/3").
+- **User feedback**: No spinner needed. Wants concrete progress: "how many out of how many tests have run."
+- **Implementation**: Each chunk from the stream is parsed in real time, detecting pytest (`PASSED`/`FAILED`/dot format) and Jest (`✓`/`✕`) patterns and updating a running count.
+  - Banner example: "Running tests (12 done / 2 failed)"
+  - Auto-fix phase: "Auto-fixing 1/3"
+  - Phase label managed via `testPhaseLabel` state; counter resets on test start.
 
-### テスト結果「実際の出力」・「判定」が空白だった問題 ✅ 対応済み
+### ~~M3: Test case structure & DB management~~ ✅ Fixed (2026-04-23)
 
-- **原因1**: `_extract_result_for_function()` が pytest verbose 出力のみを想定しており、Jest の `✓/✕ TC-xxx:` フォーマットを認識していなかった
-- **原因2**: PASSED のテストには実際の出力値がどこにも記録されていなかった
-- **対応**: Jest に `--verbose` を追加。各テスト関数が `console.log('XOLVIEN_RESULT:{tc_id, actual}')` で実際の出力値を記録し、バックエンドが stdout からパースして DB に保存。PASSED・FAILED 両方で記録される
-- **対応**: テスト実行前にバックエンド（root）が `/tmp/xolvien_tc_results.jsonl` を `chmod 777` で作成し、xolvien ユーザーによる `appendFileSync` の EACCES を回避（後方互換として `appendFileSync` 方式もパース対象に含める）
+- **User feedback**: "Test cases need IDs"; "can't re-run without concrete input values and expected outputs"; "test cases with no relation to the tests are pointless."
+- **Design**: Separated `test_case_items` (specification, TC-ID) and `test_case_results` (per-run results) into distinct DB tables.
+- `generate_test_cases()` outputs a JSON array (TC-ID / target screen / test item / operation with concrete input / expected output / function_name) and saves to `test_case_items`.
+- `run_unit_tests()` generates test functions keyed by `function_name` from `test_case_items`, then saves results to `test_case_results` (actual output / verdict / executed_at).
+- Test case review panel: replaced Markdown textarea with a table view (TC-ID / target screen / test item / operation / expected output).
+- Review panel: shows test result table from DB `test_case_results` (TC-ID / test item / expected output / actual output / verdict / executed_at).
+- New API endpoints: `GET /tasks/{id}/test-cases`, `GET /tasks/{id}/test-cases/{item_id}/results`.
 
-### テスト結果サマリーがテスト関数数になっていた問題 ✅ 対応済み
+### ~~M4: Test result summary table~~ ✅ Fixed (2026-04-22)
 
-- **原因**: `_parse_test_summary()` が Jest/pytest 出力の「テスト関数数」を読んでいた（50件など）
-- **対応**: `test_case_results` の verdict を集計した TC 件数ベースのサマリーに変更
-
-### インフラエラー時に自動修正を延々と繰り返す問題 ✅ 対応済み
-
-- **原因1**: EACCES 等のエラーは Claude が修正できないにもかかわらず自動修正ループが走り続けた
-- **原因2**: 自動修正プロンプトに「テストを再実行してください」と指示していたため Claude 自身がテストを再実行し続けた
-- **対応**: EACCES / EPERM / Cannot find module 等を検出した場合は即中断。修正プロンプトから「テストの再実行」指示を削除し、修正のみ行わせるよう変更
-
-### その他の修正 ✅ 対応済み
-
-- HTML title・TaskCreate ヘッダーの旧名 `Karakuri` を `Xolvien` に修正
-- 単体テストステップ選択時に「テストケースを生成」ボタンが表示されなかった問題を修正（chatEntries にエントリが一つもない初回状態でも表示）
-- テスト完了後の「テストを再実行」に「テストケースを再生成」ボタンを並列追加
+- Parses pytest verbose / short / Jest (`✓`/`✕`) output line by line and builds a summary table of test names and results.
+- Displayed inline in the review panel (`<table>` element).
+- Also written as a `## Test Result Summary` section in the Markdown test report under `/workspace/repo/test-reports/`.
+- Reconstructed from `TestRun.output` in DB on page reload.
 
 ---
 
-## ~~フェーズ2: 結合テスト~~ ✅ 対応済み（2026-04-28）
+## Priority: Low (UX improvements)
 
-**2026-04-27 初回実装:**
-- `claude_service.py` に `run_integration_tests()` を追加（`_run_tests()` 共通ヘルパーに `TestType.INTEGRATION` を渡す）
-- `_run_tests()` に結合テスト固有プロンプト（サーバー起動・HTTP リクエストテスト）を追加
-- `instructions.py` に `POST /run-integration-tests` エンドポイントを追加
-- ステップバーの「結合テスト」ステップをアクティブ化（`future: true` を削除）
-- 単体テスト合格後に「結合テスト」ステップへ自動遷移し、合格後に「実装確認」へ遷移
+### ~~L1: Chat-style right-pane layout overhaul~~ ✅ Fixed (2026-04-26)
 
-**2026-04-28 テストケース分離（案A）:**
-- **問題**: 単体テストと結合テストでテストケースが共通だった（対象が違うのに同じケース）
-- `test_case_items` テーブルに `test_type` カラム追加（UNIT / INTEGRATION）
-- DBマイグレーション追加（`a1b2c3d4e5f6`）
-- 単体テストケース: `TC-NNN` / `test_tc001_` 形式。結合テストケース: `ITC-NNN` / `test_itc001_` 形式
-- `generate_test_cases()` を `test_type` 引数対応に変更（結合用は API 連携・DB 操作を検証するプロンプト）
-- `POST /generate-integration-test-cases` エンドポイント追加
-- `GET /test-cases?test_type=unit|integration` でフィルタリング対応
-- フロントエンドに結合テストケースの生成→確認→承認→実行の独立フローを追加
-- セッション再開時に単体・結合テストケースをそれぞれ別途 DB から復元
-
-**2026-04-28 結合テスト品質改善（動作確認後の修正）:**
-- **問題1**: 結合テスト実行時に `EACCES: permission denied, open '/tmp/xolvien_itc_results.jsonl'` が発生し、全件 failed・実際の出力が取得できなかった
-  - `_run_tests()` が `/tmp/xolvien_tc_results.jsonl`（単体テスト用）のみ事前作成しており、結合テスト用を作成していなかった
-  - `results_file` 変数を `is_integration` で切り替え、JSONL の作成・読み取り両方で正しいパスを使用するよう修正
-- **問題2**: 結合テストケースが単体テストと同内容（localStorage・DOM 操作）になっていた
-  - テストケース生成プロンプトに「単体テストとの違い」を明示し、HTTP メソッド・URL・リクエストボディ・レスポンスステータスを必須記述するよう強化
-  - テストケース件数を 10〜15 件に制限（単体テスト同様の大量ケースから削減）
-- **問題3**: `XOLVIEN_RESULT:` ログのサンプルが結合テストでも `TC-001`/`test_tc001_xxx` だった
-  - テストコード生成プロンプトのサンプルを `is_integration` で切り替え、結合テストは `ITC-001`/`test_itc001_xxx` を使用するよう修正
+- **User feedback**: "Without output staying visible, it's impossible to debug when something goes wrong. Persistent scroll-based display is mandatory." (bumped to high priority)
+- **Implementation**: Append-only chat history via `ChatEntry` union type. All phases (Q&A / prompt generation / implementation / test cases / test results / review / error / system notices) persist as cards. Input area is always pinned to the bottom; Enter switches to send mode during clarify.
+- **Additional fix (2026-04-26)**: Moved action buttons from inside chat cards to the footer below the input area. `renderActionButtons()` dynamically switches the button set based on `selectedStep`. Textarea is shown as disabled during unit-test and review steps. Removed auto-population of the input field on "Implement" step click. System notices shown as `info` entries appended to chat history.
 
 ---
 
-## ~~フェーズ3: E2E テスト（Playwright）~~ ✅ 対応済み（2026-04-30）
+## Bug Fixes (2026-04-26)
 
-**バックエンド:**
-- `claude_service.py` に `run_e2e_tests()` と E2E 専用の `generate_test_cases(TestType.E2E)` を追加
-  - `TestType.E2E` で `TestRun` を作成
-  - `tc_id` プロパティが `E2E-NNN` 形式で生成されるよう `test_case_item.py` を更新
-  - Playwright プロンプト: ヘッドレスモードでブラウザ起動、スクリーンショットを `/workspace/repo/test-reports/screenshots/` に保存
-  - 結果ファイルを `/tmp/xolvien_e2e_results.jsonl` で管理
-  - `instructions.py` に `POST /generate-e2e-test-cases` と `POST /run-e2e-tests` エンドポイントを追加
-  - `schemas/instruction.py` に `RunE2ETestsRequest` を追加
+### "Actual output" and "verdict" were blank in test results ✅ Fixed
 
-**フロントエンド:**
-- ステップバーの「E2Eテスト」ステップをアクティブ化（`future: true` を削除）
-- `api.ts` に `generateE2ETestCasesStream()` / `runE2ETestsStream()` を追加
-- `ChatEntry` 型に `e2e_test_cases_generating` / `e2e_test_cases_ready` を追加（シアン色 `#06b6d4`）
-- 結合テスト合格後 → E2Eテストステップへ自動遷移、E2E合格後 → 実装確認へ遷移
-- セッション再開時に E2E テストケースと実行結果を DB から復元
-- E2Eテストケースの生成→確認→承認→実行の独立フローを追加
+- **Cause 1**: `_extract_result_for_function()` only handled pytest verbose output; Jest `✓/✕ TC-xxx:` format was not recognized.
+- **Cause 2**: No actual output was recorded for passing tests.
+- **Fix**: Added `--verbose` to Jest. Each test function emits `console.log('XOLVIEN_RESULT:{tc_id, actual}')` for both PASSED and FAILED cases; backend parses stdout and saves to DB. Also added `appendFileSync`-style parsing for backward compatibility.
+- **Fix**: Backend (root) pre-creates `/tmp/xolvien_tc_results.jsonl` with `chmod 777` before test execution to avoid EACCES when the xolvien user calls `appendFileSync`.
 
----
+### Test result summary showed function count instead of TC count ✅ Fixed
 
-## 日英両言語対応
+- **Cause**: `_parse_test_summary()` read the "number of test functions" from Jest/pytest output (e.g. 50).
+- **Fix**: Changed to aggregate verdicts from `test_case_results`, making the summary TC-count based.
 
-UIとドキュメントを日英切り替えに対応する。
+### Auto-fix loop ran indefinitely on infrastructure errors ✅ Fixed
 
-### ~~I18N-1: UI の日英切り替え~~ ✅ 対応済み（2026-05-02）
+- **Cause 1**: Errors like EACCES that Claude cannot fix still triggered the auto-fix loop.
+- **Cause 2**: The fix prompt instructed Claude to "re-run the tests", causing Claude to re-run them itself.
+- **Fix**: Detect EACCES / EPERM / Cannot find module etc. and abort immediately. Removed "re-run tests" instruction from fix prompt — Claude now only fixes code; the backend handles re-running.
 
-- ライブラリ不使用。`src/i18n/ja.ts` / `en.ts` に翻訳マップ、`LangContext` + `useLang()` hook で管理
-- 全ラベル・ボタン・メッセージを `t.xxx` に置換
-- 各ページのヘッダーに `JA` / `EN` トグルボタンを追加
-- 選択言語を `localStorage`（キー: `xolvien-lang`）に永続化
+### Other fixes ✅ Fixed
 
-### I18N-2: ドキュメントの日英対応
-
-- `docs/spec.md` / `docs/roadmap.md` / `docs/changelog.md` を英語版として `docs/en/` 以下に用意
-- または単一ファイル内に `## Japanese` / `## English` セクションを設ける
-- README（英語）を追加
+- Replaced old name `Karakuri` with `Xolvien` in HTML title and TaskCreate header.
+- Fixed "Generate test cases" button not appearing on first visit to unit test step (when `chatEntries` is empty).
+- Added "Regenerate test cases" button alongside "Re-run tests" after test completion.
 
 ---
 
-## GitHub API によるリポジトリ自動作成
+## ~~Phase 2: Integration Tests~~ ✅ Fixed (2026-04-28)
 
-新しいプログラムを作るたびに GitHub で手動リポジトリを作成するのは手間がかかる。タスク作成画面から直接リポジトリを作れるようにする。
+**2026-04-27 initial implementation:**
+- Added `run_integration_tests()` to `claude_service.py` (wrapper passing `TestType.INTEGRATION` to `_run_tests()`).
+- Added integration-test-specific prompt to `_run_tests()` (server startup + HTTP request testing).
+- Added `POST /run-integration-tests` endpoint to `instructions.py`.
+- Activated "Integration Test" step in step bar (removed `future: true`).
+- Auto-transition: unit test pass → integration test; integration test pass → review.
 
-**バックエンド:**
-- GitHub API（`POST /user/repos`）でリポジトリを作成するエンドポイントを追加
-- GitHub Personal Access Token を `.env` で管理
+**2026-04-28 test case separation (Plan A):**
+- **Problem**: Unit and integration tests shared test cases (same cases, different targets).
+- Added `test_type` column to `test_case_items` (UNIT / INTEGRATION).
+- Added DB migration (`a1b2c3d4e5f6`).
+- Unit TCs: `TC-NNN` / `test_tc001_` format. Integration TCs: `ITC-NNN` / `test_itc001_` format.
+- Updated `generate_test_cases()` to accept `test_type` (integration prompt targets API / DB operations).
+- Added `POST /generate-integration-test-cases` endpoint.
+- Added `GET /test-cases?test_type=unit|integration` filter support.
+- Added independent integration test case generation → review → approval → run flow to frontend.
+- Session resume now restores unit and integration test cases separately from DB.
 
-**フロントエンド:**
-- タスク作成画面の「新しいリポジトリを追加」タブに「GitHub で自動作成」オプションを追加
-- リポジトリ名・説明を入力するだけで URL が自動入力される
-
----
-
-## 入力欄の拡張（Markdown プレビュー）
-
-現状のテキストエリアは GitHub Issues のような快適な入力体験を提供できていない。
-
-**実装方針:**
-- 入力欄を大幅に広げ、デフォルト高さを 4〜6 行以上に拡大
-- 「Write / Preview」タブ切り替えを追加し、Markdown をリアルタイムプレビュー
-- Markdown レンダリングには `react-markdown` を使用
-- コードブロック・箇条書き・見出しなど基本的な Markdown 記法をサポート
-
----
-
-## ファイルアップロードによる要件解析
-
-テキスト入力の代わりに、仕様書・設計書・画面モック等のファイルをアップロードして要件を入力できるようにする。
-
-**バックエンド:**
-- `POST /api/v1/tasks/{id}/uploads` エンドポイントを追加（`multipart/form-data`）
-- PDF / Word / Markdown / 画像（PNG・JPG）を受け付け、Claude でテキスト抽出・解析
-- 抽出したテキストを `Instruction.content` のベースとして使用
-
-**フロントエンド:**
-- 要件入力エリアにファイルドロップゾーン / ファイル選択ボタンを追加
-- アップロード中のプログレスバー表示
-- アップロード済みファイル名を入力欄上部に表示
+**2026-04-28 quality improvements (post-verification):**
+- **Problem 1**: `EACCES: permission denied, open '/tmp/xolvien_itc_results.jsonl'` on integration test runs. Fixed by switching `results_file` path by `is_integration`.
+- **Problem 2**: Integration test cases were identical to unit test cases (localStorage/DOM operations). Fixed by strengthening the prompt to specify HTTP method/URL/body/status.
+- **Problem 3**: `XOLVIEN_RESULT:` log samples in integration test code generation prompt still used `TC-001`/`test_tc001_xxx`. Fixed by switching to `ITC-001`/`test_itc001_xxx` based on `is_integration`.
 
 ---
 
-## ドキュメント自動生成
+## ~~Phase 3: E2E Tests (Playwright)~~ ✅ Fixed (2026-04-30)
 
-実装・テスト各フェーズの成果物を元に、各種ドキュメントを自動生成する。
+**Backend:**
+- Added `run_e2e_tests()` and E2E-specific `generate_test_cases(TestType.E2E)` to `claude_service.py`.
+- `test_case_item.py` updated so `tc_id` property generates `E2E-NNN` format.
+- Playwright prompt: headless browser, screenshots saved to `/workspace/repo/test-reports/screenshots/`.
+- Results file at `/tmp/xolvien_e2e_results.jsonl`.
+- Added `POST /generate-e2e-test-cases` and `POST /run-e2e-tests` to `instructions.py`.
+- Added `RunE2ETestsRequest` to `schemas/instruction.py`.
 
-**生成するドキュメント:**
-- 要件定義書
-- 基本設計書
-- 詳細設計書
-- テスト報告書（単体・結合・E2E それぞれ独立）
-
-**バックエンド:**
-- `POST /api/v1/tasks/{id}/documents/generate` エンドポイントを追加
-- Claude に実装プロンプト・テストケース・テスト結果を渡して Markdown 生成
-- 生成したドキュメントを DB に保存（`task_documents` テーブル）
-
-**フロントエンド:**
-- 実装確認画面に「ドキュメント生成」ボタンを追加
-- 生成済みドキュメントのプレビュー・ダウンロード（Markdown / PDF）
-
----
-
-## 進捗インジケーターの改善
-
-砂時計・グルグル・固定メッセージを廃止し、リアルタイムの具体的な進捗を表示する。
-
-**現状の問題:**
-- ストリーミング中に「処理中...」のような固定メッセージが表示されている箇所がある
-- 全体の何ステップ中どこにいるか、残り時間の目安が分からない
-
-**実装方針:**
-- 各フェーズの処理を「XX / YY 完了」形式で表示（例: `テストを実行中 8 / 12 完了`)
-- 過去の実行時間から残り時間を推定し「残り約 N 秒」を表示
-- 固定の砂時計・スピナーアイコンをすべて撤廃
-- ストリームから検出できない処理（コード生成中など）は進行バー（indeterminate）で表示
+**Frontend:**
+- Activated "E2E Test" step in step bar (removed `future: true`).
+- Added `generateE2ETestCasesStream()` / `runE2ETestsStream()` to `api.ts`.
+- Added `e2e_test_cases_generating` / `e2e_test_cases_ready` to `ChatEntry` type (cyan `#06b6d4`).
+- Auto-transition: integration test pass → E2E; E2E pass → review.
+- Session resume restores E2E test cases and results from DB.
+- Added independent E2E test case generation → review → approval → run flow.
 
 ---
 
-## メッセージをいつでも送信可能にする
+## Japanese/English i18n
 
-現状、一部のステップではテキストエリアが `disabled` になり、ユーザーが追加指示を送れない。
+### ~~I18N-1: UI language toggle~~ ✅ Fixed (2026-05-02)
 
-**実装方針:**
-- テキストエリアの `disabled` を完全撤廃、常時入力可能にする
-- 処理実行中にメッセージを送信した場合はキューに積み、完了後に自動送信
-- またはストリーミングを中断して追加指示を即時反映するオプションを提供
+- No external library. `src/i18n/ja.ts` / `en.ts` hold translation maps; `LangContext` + `useLang()` hook manages selection.
+- All labels, buttons, and messages replaced with `t.xxx`.
+- `JA` / `EN` toggle added to each page header.
+- Selection persisted to `localStorage` (key: `xolvien-lang`).
 
----
+### ~~I18N-2: Documentation i18n~~ ✅ Fixed (2026-05-04)
 
-## 例外ハンドリングの改善
-
-個別の `try/catch` を廃止し、単一のエラー画面に集約する。
-
-**フロントエンド:**
-- React の `ErrorBoundary` を導入し、未処理例外をキャッチして統一エラー画面に遷移
-- API エラー（4xx / 5xx）はグローバルな axios インターセプターで処理
-- 個別コンポーネントの `try/catch` + ローカル `errorMessage` state を撤廃
-
-**バックエンド:**
-- FastAPI の `exception_handler` でアプリ全体のエラーレスポンス形式を統一
-- エラーレスポンスを `{ code, message, detail }` 形式に統一
+- Developer docs (`spec.md`, `roadmap.md`, `changelog.md`) rewritten in English.
+- User-facing docs: `getting-started.md` is the English version; `getting-started.ja.md` is the Japanese version.
 
 ---
 
-## PR 自動作成
+## GitHub API: Automatic Repository Creation
 
-テスト完了・ユーザー承認後に GitHub PR を自動作成する。
+Creating a GitHub repository manually every time a new program is started is cumbersome. Allow repository creation directly from the task creation screen.
 
-**バックエンド:**
-- `git/push` エンドポイントを拡張、または新規に `POST /git/create-pr` エンドポイントを追加
-- コンテナ内で `gh pr create` を実行
-- PR タイトル・本文を Claude が生成
+**Backend:**
+- Add endpoint that calls GitHub API (`POST /user/repos`) to create a repository.
+- Manage GitHub Personal Access Token via `.env`.
 
-**フロントエンド:**
-- 実装確認画面の「承認」後に PR 作成オプションを表示
-
----
-
-## GitHub Issue 連携
-
-GitHub Webhook でイシューを受け取り、タスクを自動生成・実行する。
-
-**バックエンド:**
-- `POST /api/v1/webhooks/github` エンドポイントを追加
-- Issue の本文をタスクの指示として使用して自動フローを開始
+**Frontend:**
+- Add "Create on GitHub automatically" option to the "Add new repository" tab in task creation.
+- Entering the repository name and description auto-fills the URL.
 
 ---
 
-## マルチユーザー対応
+## Input Field Enhancement (Markdown Preview)
 
-シングルユーザーでの全機能実装完了後に着手する。
+The current textarea does not provide a comfortable writing experience comparable to GitHub Issues.
 
-- GitHub OAuth 認証（`authlib` 等）
-- ユーザーごとのリポジトリ・タスク管理
-- ストリーミングのブロッキング解消（`run_in_executor` でスレッドプールに移譲）
-- ユーザーごとのリソース制限
+**Implementation plan:**
+- Significantly expand the input field; default height 4–6+ lines.
+- Add "Write / Preview" tab toggle with real-time Markdown preview.
+- Use `react-markdown` for rendering.
+- Support common Markdown: code blocks, lists, headings.
+
+---
+
+## File Upload for Requirements Analysis
+
+Allow uploading spec documents, design docs, screen mockups, etc. instead of typing requirements as text.
+
+**Backend:**
+- Add `POST /api/v1/tasks/{id}/uploads` endpoint (`multipart/form-data`).
+- Accept PDF / Word / Markdown / images (PNG, JPG); extract and analyze text with Claude.
+- Use extracted text as the base for `Instruction.content`.
+
+**Frontend:**
+- Add file drop zone / file select button to the requirements input area.
+- Progress bar during upload.
+- Show uploaded file names above the input field.
+
+---
+
+## Automatic Document Generation
+
+Automatically generate various documents from the artifacts produced in each implementation and test phase.
+
+**Documents to generate:**
+- Requirements definition
+- Basic design
+- Detailed design
+- Test reports (separate for unit / integration / E2E)
+
+**Backend:**
+- Add `POST /api/v1/tasks/{id}/documents/generate` endpoint.
+- Pass implementation prompt, test cases, and test results to Claude to generate Markdown.
+- Save generated documents to DB (`task_documents` table).
+
+**Frontend:**
+- Add "Generate documents" button to the review screen.
+- Preview and download (Markdown / PDF) of generated documents.
+
+---
+
+## Progress Indicator Improvements
+
+Replace hourglasses, spinners, and fixed messages with real-time specific progress.
+
+**Current problems:**
+- Some areas show a fixed "Processing…" message during streaming.
+- No indication of what overall step the process is at or how long it will take.
+
+**Implementation plan:**
+- Show processing in "XX / YY complete" format (e.g. `Running tests: 8 / 12 complete`).
+- Estimate remaining time from past run durations and show "~N seconds remaining".
+- Remove all fixed hourglass/spinner icons.
+- Use an indeterminate progress bar for phases that can't emit granular stream events (e.g. code generation).
+
+---
+
+## Always-available Message Sending
+
+Currently the textarea is `disabled` in some steps, preventing the user from sending additional instructions.
+
+**Implementation plan:**
+- Remove `disabled` from the textarea entirely; always allow input.
+- If a message is sent while processing, enqueue it and auto-send on completion.
+- Alternatively, provide an option to interrupt streaming and apply the additional instruction immediately.
+
+---
+
+## Exception Handling Improvements
+
+Replace individual `try/catch` blocks with a single error surface.
+
+**Frontend:**
+- Introduce React `ErrorBoundary` to catch unhandled exceptions and redirect to a unified error screen.
+- Handle API errors (4xx / 5xx) via a global axios interceptor.
+- Remove per-component `try/catch` + local `errorMessage` state.
+
+**Backend:**
+- Use FastAPI `exception_handler` to unify error response format across the app.
+- Standardize error responses to `{ code, message, detail }`.
+
+---
+
+## Automatic PR Creation
+
+Automatically create a GitHub PR after tests pass and the user approves.
+
+**Backend:**
+- Extend the `git/push` endpoint or add a new `POST /git/create-pr` endpoint.
+- Run `gh pr create` inside the container.
+- Claude generates the PR title and body.
+
+**Frontend:**
+- Show a PR creation option after "Approve" on the review screen.
+
+---
+
+## GitHub Issue Integration
+
+Receive issues via GitHub Webhook and automatically create and run tasks.
+
+**Backend:**
+- Add `POST /api/v1/webhooks/github` endpoint.
+- Use the issue body as the task instruction and start the automated flow.
+
+---
+
+## Multi-user Support
+
+Start after all single-user features are complete.
+
+- GitHub OAuth authentication (`authlib` etc.)
+- Per-user repository and task management
+- Streaming blocking resolution (move to thread pool via `run_in_executor`)
+- Per-user resource limits
