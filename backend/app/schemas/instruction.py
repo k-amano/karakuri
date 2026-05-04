@@ -8,21 +8,25 @@ from app.models.instruction import InstructionStatus
 class GenerateTestCasesRequest(BaseModel):
     """Request schema for test case generation."""
     implementation_prompt: str
+    lang: str = "ja"
 
 
 class RunUnitTestsRequest(BaseModel):
     """Request schema for running unit tests."""
     implementation_prompt: str
+    lang: str = "ja"
 
 
 class RunIntegrationTestsRequest(BaseModel):
     """Request schema for running integration tests."""
     implementation_prompt: str
+    lang: str = "ja"
 
 
 class RunE2ETestsRequest(BaseModel):
     """Request schema for running E2E tests."""
     implementation_prompt: str
+    lang: str = "ja"
 
 
 class GeneratePromptRequest(BaseModel):

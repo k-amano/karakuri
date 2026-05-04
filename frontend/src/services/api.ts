@@ -220,7 +220,8 @@ export async function generateTestCasesStream(
   implementationPrompt: string,
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  lang: string = 'ja'
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -231,7 +232,7 @@ export async function generateTestCasesStream(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${AUTH_TOKEN}`,
         },
-        body: JSON.stringify({ implementation_prompt: implementationPrompt }),
+        body: JSON.stringify({ implementation_prompt: implementationPrompt, lang }),
       }
     )
 
@@ -265,7 +266,8 @@ export async function generateIntegrationTestCasesStream(
   implementationPrompt: string,
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  lang: string = 'ja'
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -276,7 +278,7 @@ export async function generateIntegrationTestCasesStream(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${AUTH_TOKEN}`,
         },
-        body: JSON.stringify({ implementation_prompt: implementationPrompt }),
+        body: JSON.stringify({ implementation_prompt: implementationPrompt, lang }),
       }
     )
 
@@ -310,7 +312,8 @@ export async function runUnitTestsStream(
   implementationPrompt: string,
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  lang: string = 'ja'
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -321,7 +324,7 @@ export async function runUnitTestsStream(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${AUTH_TOKEN}`,
         },
-        body: JSON.stringify({ implementation_prompt: implementationPrompt }),
+        body: JSON.stringify({ implementation_prompt: implementationPrompt, lang }),
       }
     )
 
@@ -355,7 +358,8 @@ export async function runIntegrationTestsStream(
   implementationPrompt: string,
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  lang: string = 'ja'
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -366,7 +370,7 @@ export async function runIntegrationTestsStream(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${AUTH_TOKEN}`,
         },
-        body: JSON.stringify({ implementation_prompt: implementationPrompt }),
+        body: JSON.stringify({ implementation_prompt: implementationPrompt, lang }),
       }
     )
 
@@ -400,7 +404,8 @@ export async function generateE2ETestCasesStream(
   implementationPrompt: string,
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  lang: string = 'ja'
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -411,7 +416,7 @@ export async function generateE2ETestCasesStream(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${AUTH_TOKEN}`,
         },
-        body: JSON.stringify({ implementation_prompt: implementationPrompt }),
+        body: JSON.stringify({ implementation_prompt: implementationPrompt, lang }),
       }
     )
 
@@ -445,7 +450,8 @@ export async function runE2ETestsStream(
   implementationPrompt: string,
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  lang: string = 'ja'
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -456,7 +462,7 @@ export async function runE2ETestsStream(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${AUTH_TOKEN}`,
         },
-        body: JSON.stringify({ implementation_prompt: implementationPrompt }),
+        body: JSON.stringify({ implementation_prompt: implementationPrompt, lang }),
       }
     )
 

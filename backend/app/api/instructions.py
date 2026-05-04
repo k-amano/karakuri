@@ -187,7 +187,7 @@ async def generate_test_cases_stream(
     async def generate():
         try:
             async for chunk in claude_service.generate_test_cases(
-                db, task_id, data.implementation_prompt
+                db, task_id, data.implementation_prompt, lang=data.lang
             ):
                 yield chunk
         except ValueError as e:
@@ -220,7 +220,7 @@ async def generate_integration_test_cases_stream(
     async def generate():
         try:
             async for chunk in claude_service.generate_test_cases(
-                db, task_id, data.implementation_prompt, TestType.INTEGRATION
+                db, task_id, data.implementation_prompt, TestType.INTEGRATION, lang=data.lang
             ):
                 yield chunk
         except ValueError as e:
@@ -256,7 +256,7 @@ async def run_unit_tests_stream(
     async def generate():
         try:
             async for chunk in claude_service.run_unit_tests(
-                db, task_id, data.implementation_prompt
+                db, task_id, data.implementation_prompt, lang=data.lang
             ):
                 yield chunk
         except ValueError as e:
@@ -292,7 +292,7 @@ async def run_integration_tests_stream(
     async def generate():
         try:
             async for chunk in claude_service.run_integration_tests(
-                db, task_id, data.implementation_prompt
+                db, task_id, data.implementation_prompt, lang=data.lang
             ):
                 yield chunk
         except ValueError as e:
@@ -325,7 +325,7 @@ async def generate_e2e_test_cases_stream(
     async def generate():
         try:
             async for chunk in claude_service.generate_test_cases(
-                db, task_id, data.implementation_prompt, TestType.E2E
+                db, task_id, data.implementation_prompt, TestType.E2E, lang=data.lang
             ):
                 yield chunk
         except ValueError as e:
@@ -361,7 +361,7 @@ async def run_e2e_tests_stream(
     async def generate():
         try:
             async for chunk in claude_service.run_e2e_tests(
-                db, task_id, data.implementation_prompt
+                db, task_id, data.implementation_prompt, lang=data.lang
             ):
                 yield chunk
         except ValueError as e:

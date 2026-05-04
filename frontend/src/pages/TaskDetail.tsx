@@ -752,7 +752,8 @@ export default function TaskDetail() {
                 ? { type: 'error', message: `${t.testCaseGenError}${err}` }
                 : e
             ))
-          }
+          },
+          lang
         )
       },
       (err) => {
@@ -869,7 +870,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.testRunError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 
@@ -975,7 +977,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.integrationTestRunError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 
@@ -1024,7 +1027,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.testCaseGenError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 
@@ -1073,7 +1077,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.integrationTCGenError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 
@@ -1179,7 +1184,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.e2eTestRunError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 
@@ -1228,7 +1234,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.e2eTCGenError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 
@@ -1298,7 +1305,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.testCaseRevisionError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 

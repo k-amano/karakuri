@@ -479,6 +479,7 @@ README:
         task_id: int,
         implementation_prompt: str,
         test_type: TestType = TestType.UNIT,
+        lang: str = "ja",
     ) -> AsyncGenerator[str, None]:
         """
         Generate structured test cases (JSON) from an implementation prompt.
@@ -508,7 +509,52 @@ README:
         )
 
         if is_e2e:
-            prompt = f"""あなたはE2Eテスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、Playwright E2Eテストケース一覧を生成してください。
+            if lang == "en":
+                prompt = f"""You are an E2E test design expert. Based on the implementation prompt and file list below, generate a list of Playwright E2E test cases.
+
+## What E2E tests are (important)
+
+**E2E tests are user scenario tests through a browser.** Follow these rules:
+
+- Unit test: individual function/component behavior
+- Integration test: HTTP API request/response and multi-component interaction
+- **E2E test: launch a browser and interact with the actual UI**
+  - Open a page → interact with UI elements (click, type) → verify visible results
+  - Full user registration/login/logout flows
+  - Form submission → page transition → success/error message verification
+  - List view → detail page → edit/delete CRUD flows
+
+## Implementation content
+{implementation_prompt}
+
+## Project file list
+{file_list.strip()}
+
+## Output format (output ONLY this JSON — nothing else)
+
+```json
+[
+  {{
+    "seq_no": 1,
+    "target_screen": "Target screen or scenario name (e.g. Login page, Product list → detail transition)",
+    "test_item": "Test item name",
+    "operation": "Specific browser steps (e.g. Open http://localhost:3000/login, type \\"test@example.com\\" in email, type \\"password123\\" in password, click Login button)",
+    "expected_output": "Expected UI result (e.g. Redirected to dashboard, \\"Welcome test@example.com\\" is displayed)",
+    "function_name": "test_e2e001_short_description (alphanumeric and underscores only)"
+  }}
+]
+```
+
+## Rules
+- **Design browser UI-level tests only** (direct API calls are not E2E tests)
+- **Include specific URLs, input values, click targets, and expected text**
+- Aim for **8–12 test cases** covering key user scenarios
+- function_name must start with `test_e2e{{seq_no:03d}}_`, alphanumeric and underscores only
+- Output JSON only — no explanatory text, no Markdown headings
+- Do not generate test code (test case definitions only)
+"""
+            else:
+                prompt = f"""あなたはE2Eテスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、Playwright E2Eテストケース一覧を生成してください。
 
 ## E2Eテストとは何か（重要）
 
@@ -552,7 +598,51 @@ README:
 - テストコードは生成しないこと（テストケース定義のみ）
 """
         elif is_integration:
-            prompt = f"""あなたは結合テスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、結合テストケース一覧を生成してください。
+            if lang == "en":
+                prompt = f"""You are an integration test design expert. Based on the implementation prompt and file list below, generate a list of integration test cases.
+
+## What integration tests are (important)
+
+**Integration tests are NOT unit tests.** Follow these distinctions:
+
+- Unit test: individual function/component behavior (e.g. form validation, localStorage writes)
+- **Integration test: multiple components/layers working together**
+  - Frontend → API server → DB end-to-end flow
+  - HTTP request → response → DB state change
+  - Authentication flow (login → token → authenticated API call)
+  - Multi-API business flows (create → update → delete → list)
+
+## Implementation content
+{implementation_prompt}
+
+## Project file list
+{file_list.strip()}
+
+## Output format (output ONLY this JSON — nothing else)
+
+```json
+[
+  {{
+    "seq_no": 1,
+    "target_screen": "Target API endpoint or flow name (e.g. POST /api/users, Login flow)",
+    "test_item": "Test item name",
+    "operation": "Specific HTTP request details (e.g. Send POST /api/users with Authorization: Bearer token, Body: {{\\"name\\": \\"Alice\\", \\"email\\": \\"alice@example.com\\"}})",
+    "expected_output": "Expected HTTP response and DB state (e.g. Status 201, Body: {{\\"id\\": 1, \\"name\\": \\"Alice\\"}}, one record added to users table)",
+    "function_name": "test_itc001_short_description (alphanumeric and underscores only)"
+  }}
+]
+```
+
+## Rules
+- **Design HTTP request/response-level tests only** (DOM or localStorage tests are not integration tests)
+- **Include actual API endpoint URLs, HTTP methods, request bodies, and response status codes**
+- Aim for **10–15 test cases** covering happy path, error cases, and multi-step flows
+- function_name must start with `test_itc{{seq_no:03d}}_`, alphanumeric and underscores only
+- Output JSON only — no explanatory text, no Markdown headings
+- Do not generate test code (test case definitions only)
+"""
+            else:
+                prompt = f"""あなたは結合テスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、結合テストケース一覧を生成してください。
 
 ## 結合テストとは何か（重要）
 
@@ -595,7 +685,38 @@ README:
 - テストコードは生成しないこと（テストケース定義のみ）
 """
         else:
-            prompt = f"""あなたはテスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、単体テストのテストケース一覧を生成してください。
+            if lang == "en":
+                prompt = f"""You are a unit test design expert. Based on the implementation prompt and file list below, generate a list of unit test cases.
+
+## Implementation content
+{implementation_prompt}
+
+## Project file list
+{file_list.strip()}
+
+## Output format (output ONLY this JSON — nothing else)
+
+```json
+[
+  {{
+    "seq_no": 1,
+    "target_screen": "Target screen name (or module name if no UI)",
+    "test_item": "Test item name",
+    "operation": "Specific steps with input values (e.g. Type \\"sk-test-12345\\" in the input field and click Submit)",
+    "expected_output": "Expected specific output (e.g. localStorage[\\"apiKey\\"] equals \\"sk-test-12345\\")",
+    "function_name": "test_tc001_short_description (alphanumeric and underscores only)"
+  }}
+]
+```
+
+## Rules
+- Cover happy path, error cases, and boundary values; include specific input and expected output for each case
+- function_name must start with `test_tc{{seq_no:03d}}_`, alphanumeric and underscores only
+- Output JSON only — no explanatory text, no Markdown headings
+- Do not generate test code (test case definitions only)
+"""
+            else:
+                prompt = f"""あなたはテスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、単体テストのテストケース一覧を生成してください。
 
 ## 実装予定の内容
 {implementation_prompt}
@@ -764,9 +885,10 @@ README:
         db: AsyncSession,
         task_id: int,
         implementation_prompt: str,
+        lang: str = "ja",
     ) -> AsyncGenerator[str, None]:
         """Generate unit test code, run tests, auto-fix up to 3 times."""
-        async for chunk in self._run_tests(db, task_id, implementation_prompt, TestType.UNIT):
+        async for chunk in self._run_tests(db, task_id, implementation_prompt, TestType.UNIT, lang=lang):
             yield chunk
 
     async def run_integration_tests(
@@ -774,9 +896,10 @@ README:
         db: AsyncSession,
         task_id: int,
         implementation_prompt: str,
+        lang: str = "ja",
     ) -> AsyncGenerator[str, None]:
         """Generate integration test code, start server/DB, run tests, auto-fix up to 3 times."""
-        async for chunk in self._run_tests(db, task_id, implementation_prompt, TestType.INTEGRATION):
+        async for chunk in self._run_tests(db, task_id, implementation_prompt, TestType.INTEGRATION, lang=lang):
             yield chunk
 
     async def run_e2e_tests(
@@ -784,9 +907,10 @@ README:
         db: AsyncSession,
         task_id: int,
         implementation_prompt: str,
+        lang: str = "ja",
     ) -> AsyncGenerator[str, None]:
         """Generate Playwright E2E test code, run tests with screenshots, auto-fix up to 3 times."""
-        async for chunk in self._run_tests(db, task_id, implementation_prompt, TestType.E2E):
+        async for chunk in self._run_tests(db, task_id, implementation_prompt, TestType.E2E, lang=lang):
             yield chunk
 
     async def _run_tests(
@@ -795,6 +919,7 @@ README:
         task_id: int,
         implementation_prompt: str,
         test_type: TestType,
+        lang: str = "ja",
     ) -> AsyncGenerator[str, None]:
         """
         Shared implementation for unit, integration, and E2E tests.
@@ -896,7 +1021,72 @@ README:
    ```"""
 
         if is_e2e:
-            gen_prompt = f"""あなたはPlaywrightを使ったE2Eテストコード生成の専門家です。以下の手順をすべて実行してください。
+            if lang == "en":
+                gen_prompt = f"""You are an expert in Playwright E2E test code generation. Execute all steps below in order.
+
+## Implementation content
+{implementation_prompt}
+
+## Approved test cases
+Generate a function for each test case's function_name and write test code based on the operation and expected output.
+
+{tc_summary}
+
+## Project file list
+{file_list.strip()}
+
+## Steps (execute in order)
+
+1. Read `package.json`, `pyproject.toml`, or `requirements*.txt` to identify how to start the app
+2. **Install @playwright/test**
+   - Node.js: `npm install --save-dev @playwright/test && npx playwright install chromium`
+   - Python: `pip install pytest-playwright && playwright install chromium`
+3. **Create `playwright.config.js` (Node.js)**
+   ```javascript
+   // playwright.config.js
+   const {{ defineConfig }} = require('@playwright/test');
+   module.exports = defineConfig({{
+     testDir: './e2e',
+     use: {{ headless: true, baseURL: 'http://localhost:3000' }},
+   }});
+   ```
+   Adjust the port to match the app's actual startup port.
+4. **Start the app in the background**
+   - Node.js: `npm start &` or `npm run dev &`, then health-check with `curl`
+   - Python: `uvicorn app:app &` or `flask run &`
+5. **Create E2E test file in `e2e/` directory (Node.js: `e2e/tests.spec.js`)**
+   - Use `@playwright/test`'s `test` / `expect` — **do NOT use Jest's `test()`**
+   - Set test names matching each test case's function_name
+   - Output `console.log('XOLVIEN_RESULT:' + JSON.stringify({{tc_id: 'E2E-001', actual: 'actual value'}}))` at the start of each test
+
+   **Node.js Playwright example:**
+   ```javascript
+   const {{ test, expect }} = require('@playwright/test');
+
+   test('{tc_id_example}: test name', async ({{ page }}) => {{
+     await page.goto('/');
+     const text = await page.textContent('h1');
+     console.log('XOLVIEN_RESULT:' + JSON.stringify({{tc_id: '{tc_id_example}', actual: String(text)}}));
+     await page.screenshot({{ path: '/workspace/repo/test-reports/screenshots/{tc_id_example}.png' }});
+     await expect(page.locator('h1')).toHaveText('expected text');
+   }});
+   ```
+
+   - Output `XOLVIEN_RESULT:` before `expect`
+   - Save screenshots to `/workspace/repo/test-reports/screenshots/` before each test ends
+   - Run Playwright in headless mode (`headless: true`)
+   - Create screenshot directory with `mkdir -p` beforehand
+6. Run tests: `npx playwright test --reporter=line`
+7. Stop the background server after tests finish
+
+Notes:
+- Do not change function_name (used for DB result matching)
+- Convert `actual` to a string
+- **Do not use Jest. Use only `@playwright/test`'s `test()`**
+- Do not modify Jest settings like `testPathIgnorePatterns`
+"""
+            else:
+                gen_prompt = f"""あなたはPlaywrightを使ったE2Eテストコード生成の専門家です。以下の手順をすべて実行してください。
 
 ## 実装内容
 {implementation_prompt}
@@ -960,7 +1150,44 @@ README:
 - `testPathIgnorePatterns` など Jest の設定を変更しないこと
 """
         elif is_integration:
-            gen_prompt = f"""あなたは結合テストコード生成の専門家です。以下の手順をすべて実行してください。
+            if lang == "en":
+                gen_prompt = f"""You are an expert in integration test code generation. Execute all steps below in order.
+
+## Implementation content
+{implementation_prompt}
+
+## Approved test cases
+Generate a function for each test case's function_name and write test code based on the operation and expected output.
+
+{tc_summary}
+
+## Project file list
+{file_list.strip()}
+
+## Steps (execute in order)
+
+1. Read `package.json`, `pyproject.toml`, or `requirements*.txt` to identify the test framework and how to start the app
+2. Check existing test files and follow their naming conventions and structure
+3. **Start the API server and DB in the background** before running tests
+   - Node.js: `npm start &` or `node server.js &`, then wait for startup
+   - Python: `uvicorn app:app &` or `flask run &`
+   - If DB is needed: set up test DB connection strings
+   - Verify startup: confirm health-check endpoint is reachable with `curl` or `wget`
+4. Generate functions for all test cases using the specified function_name
+   - Use actual HTTP requests (axios, requests, fetch, httpx, etc.) to call the API
+   - Use real DB connections if DB state verification is needed
+{xolvien_result_instruction}
+5. Install required dependencies (supertest, axios, httpx, pytest-httpx, etc.)
+6. Run the tests
+
+Notes:
+- Do not change function_name (used for DB result matching)
+- Output `XOLVIEN_RESULT:` before `expect/assert`
+- Convert `actual` to a string
+- Stop the background server after tests finish
+"""
+            else:
+                gen_prompt = f"""あなたは結合テストコード生成の専門家です。以下の手順をすべて実行してください。
 
 ## 実装内容
 {implementation_prompt}
@@ -996,7 +1223,36 @@ README:
 - テスト終了後にバックグラウンドで起動したサーバーを停止すること
 """
         else:
-            gen_prompt = f"""あなたはテストコード生成の専門家です。以下の手順をすべて実行してください。
+            if lang == "en":
+                gen_prompt = f"""You are an expert in unit test code generation. Execute all steps below in order.
+
+## Implementation content
+{implementation_prompt}
+
+## Approved test cases
+Generate a function for each test case's function_name and write test code based on the operation and expected output.
+
+{tc_summary}
+
+## Project file list
+{file_list.strip()}
+
+## Steps (execute in order)
+
+1. Read `package.json`, `pyproject.toml`, or `requirements*.txt` to identify the test framework (Jest, pytest, etc.)
+2. Check existing test files and follow their naming conventions and structure
+3. Generate functions for all test cases using the specified function_name
+{xolvien_result_instruction}
+4. Install required dependencies
+5. Run the tests
+
+Notes:
+- Do not change function_name (used for DB result matching)
+- Output `XOLVIEN_RESULT:` prefix before `expect/assert` (so it is recorded even if the test fails)
+- Convert `actual` to a string
+"""
+            else:
+                gen_prompt = f"""あなたはテストコード生成の専門家です。以下の手順をすべて実行してください。
 
 ## 実装内容
 {implementation_prompt}
@@ -1079,7 +1335,39 @@ README:
             if attempt > 0:
                 yield f"\n{tag} 自動修正 ({attempt}/{max_retries})...\n"
 
-                fix_prompt = f"""テストが失敗しました。原因を特定して修正してください。
+                if lang == "en":
+                    fix_prompt = f"""The tests failed. Identify the cause and fix it.
+
+## Implementation content
+{implementation_prompt}
+
+## Test case list
+{tc_summary}
+
+## Test command
+{test_command}
+
+## Test output
+{last_output[-3000:] if len(last_output) > 3000 else last_output}
+
+## Standard error output
+{last_error[-1000:] if len(last_error) > 1000 else last_error}
+
+## Instructions
+1. Identify the cause of failure (test code issue or implementation issue)
+2. Fix the cause (do not change function_name)
+3. Install missing dependencies if needed
+4. Do not re-run the tests — only fix the code
+
+## Absolutely prohibited
+- Removing or weakening validation logic just to make tests pass
+  (e.g. swallowing exceptions in `try/catch`, adding `return true` fallbacks)
+- Weakening or removing `expect` / `assert` conditions
+- For environment-dependent failures (clipboard, notifications, external APIs),
+  use Playwright's `browserContext.grantPermissions()` or `page.route()` to mock correctly
+"""
+                else:
+                    fix_prompt = f"""テストが失敗しました。原因を特定して修正してください。
 
 ## 実装内容
 {implementation_prompt}
