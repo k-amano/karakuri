@@ -1,5 +1,8 @@
 """Docker container management service."""
 import codecs
+import io
+import os
+import tarfile
 import time
 import docker
 from docker.models.containers import Container
@@ -50,13 +53,12 @@ class DockerService:
             # Create volume
             self.client.volumes.create(name=volume_name)
 
-            # Mount host ~/.claude/ for Claude Code CLI authentication
             # Mount host ~/.ssh/ for GitHub SSH authentication (read-only)
-            claude_dir = str(Path.home() / ".claude")
+            # ~/.claude/ is NOT mounted — only the credentials file is copied
+            # after container start to avoid carrying over stale backups/history
             ssh_dir = str(Path.home() / ".ssh")
             volumes = {
                 volume_name: {"bind": "/workspace", "mode": "rw"},
-                claude_dir: {"bind": "/root/.claude", "mode": "rw"},
                 ssh_dir: {"bind": "/root/.ssh", "mode": "ro"},
             }
 
@@ -95,6 +97,27 @@ class DockerService:
 
             if exit_code != 0:
                 raise RuntimeError(f"Failed to clone repository: {output.decode()}")
+
+            # Copy only the credentials file into the xolvien user's home so
+            # Claude Code CLI can authenticate without inheriting host backups,
+            # history, or other unrelated files from ~/.claude/
+            credentials_src = str(Path.home() / ".claude" / ".credentials.json")
+            if os.path.exists(credentials_src):
+                with open(credentials_src, "rb") as f:
+                    creds_data = f.read()
+                import tarfile, io
+                tar_buf = io.BytesIO()
+                with tarfile.open(fileobj=tar_buf, mode='w') as tar:
+                    info = tarfile.TarInfo(name='.credentials.json')
+                    info.size = len(creds_data)
+                    info.mode = 0o600
+                    tar.addfile(info, io.BytesIO(creds_data))
+                tar_buf.seek(0)
+                container.put_archive('/home/xolvien/.claude/', tar_buf)
+                container.exec_run(
+                    ["bash", "-c", "chown xolvien:xolvien /home/xolvien/.claude/.credentials.json"],
+                    workdir="/workspace",
+                )
 
             # Grant ownership of cloned repo to xolvien user (for agent mode)
             container.exec_run(

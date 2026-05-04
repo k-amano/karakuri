@@ -49,17 +49,16 @@ except KeyError:
     home = '/root'
 
 if uid is not None:
-    for d in ['.claude', '.ssh']:
-        src, dst = f'/root/{d}', f'{home}/{d}'
-        if os.path.exists(src) and not os.path.exists(dst):
-            shutil.copytree(src, dst, symlinks=True)
-            for dirpath, dirs, files in os.walk(dst):
-                os.chown(dirpath, uid, gid)
-                for f in files:
-                    try:
-                        os.chown(os.path.join(dirpath, f), uid, gid)
-                    except Exception:
-                        pass
+    src, dst = '/root/.ssh', f'{home}/.ssh'
+    if os.path.exists(src) and not os.path.exists(dst):
+        shutil.copytree(src, dst, symlinks=True)
+        for dirpath, dirs, files in os.walk(dst):
+            os.chown(dirpath, uid, gid)
+            for f in files:
+                try:
+                    os.chown(os.path.join(dirpath, f), uid, gid)
+                except Exception:
+                    pass
 
     def drop_privs():
         os.setgid(gid)
