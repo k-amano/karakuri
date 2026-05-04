@@ -628,7 +628,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.promptGenError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 
@@ -668,7 +669,8 @@ export default function TaskDetail() {
             ? { type: 'error', message: `${t.regenerateError}${err}` }
             : e
         ))
-      }
+      },
+      lang
     )
   }
 

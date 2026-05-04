@@ -173,7 +173,8 @@ export async function generatePromptStream(
   feedback: string,
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  lang: string = 'ja'
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -184,7 +185,7 @@ export async function generatePromptStream(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${AUTH_TOKEN}`,
         },
-        body: JSON.stringify({ content, feedback: feedback || null }),
+        body: JSON.stringify({ content, feedback: feedback || null, lang }),
       }
     )
 

@@ -34,6 +34,7 @@ class GeneratePromptRequest(BaseModel):
 
     content: str
     feedback: Optional[str] = None
+    lang: str = "ja"
 
 
 class ChatMessage(BaseModel):

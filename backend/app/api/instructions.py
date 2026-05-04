@@ -113,7 +113,7 @@ async def generate_prompt_stream(
     async def generate():
         try:
             async for chunk in claude_service.generate_prompt(
-                db, task_id, data.content, data.feedback or ""
+                db, task_id, data.content, data.feedback or "", lang=data.lang
             ):
                 yield chunk
         except ValueError as e:

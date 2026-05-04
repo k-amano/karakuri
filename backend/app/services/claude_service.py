@@ -242,6 +242,7 @@ README:
         task_id: int,
         instruction_content: str,
         feedback: str = "",
+        lang: str = "ja",
     ) -> AsyncGenerator[str, None]:
         """
         Generate an optimized prompt from a brief user instruction.
@@ -280,11 +281,57 @@ README:
             .limit(5)
         )
         past_instructions = past_result.scalars().all()
-        past_text = "\n".join(f"- {i.content}" for i in past_instructions) or "(なし)"
+        past_text = "\n".join(f"- {i.content}" for i in past_instructions) or "(none)"
 
-        # Build meta-prompt — file contents are NOT pre-embedded;
-        # the agent reads relevant files itself based on the instruction
-        meta_prompt = f"""あなたはプロンプトエンジニアです。ユーザーの簡潔な指示を、Claude Code CLIエージェントに渡す最適なプロンプトに変換してください。
+        if lang == "en":
+            meta_prompt = f"""You are a prompt engineer. Convert the user's brief instruction into the best possible prompt to pass to a Claude Code CLI agent.
+
+## Workspace information
+
+Working directory: /workspace/repo
+
+File list:
+{file_list.strip()}
+
+Recent git history:
+{git_log.strip()}
+
+README:
+{readme[:3000].strip()}
+
+Past instructions for this task:
+{past_text}
+
+## User instruction
+
+{instruction_content}
+"""
+            if feedback:
+                meta_prompt += f"""
+## Feedback on the previously generated prompt
+
+{feedback}
+"""
+            meta_prompt += """
+## Steps
+
+1. Identify files related to the user's instruction from the file list above
+2. Read those files to understand the current implementation accurately
+3. Generate the best prompt to pass to the Claude Code CLI agent
+
+## Output rules
+
+The generated prompt must include:
+- Exact file paths (based on what you read)
+- Specific changes to make given the current implementation
+- Verification criteria if needed
+
+Note: The execution agent reads/writes files and runs commands automatically. Do not specify output format.
+
+Output the prompt body only. No explanation or preamble.
+"""
+        else:
+            meta_prompt = f"""あなたはプロンプトエンジニアです。ユーザーの簡潔な指示を、Claude Code CLIエージェントに渡す最適なプロンプトに変換してください。
 
 ## ワークスペース情報
 
@@ -306,13 +353,13 @@ README:
 
 {instruction_content}
 """
-        if feedback:
-            meta_prompt += f"""
+            if feedback:
+                meta_prompt += f"""
 ## 前回生成したプロンプトへの指摘
 
 {feedback}
 """
-        meta_prompt += """
+            meta_prompt += """
 ## 手順
 
 1. まず上記のファイル一覧から、ユーザーの指示に関係するファイルを特定してください
@@ -390,14 +437,14 @@ README:
             instruction.started_at = datetime.utcnow()
             await db.commit()
 
-            yield f"[SYSTEM] 指示を受け付けました\n"
+            yield f"[SYSTEM] Instruction received\n"
             yield f"[SYSTEM] {instruction_content}\n\n"
 
             # Write prompt and agent runner script into the container
             self._write_text_to_container(task.container_id, "/tmp/xolvien_prompt.txt", instruction_content)
             self._write_text_to_container(task.container_id, "/tmp/xolvien_runner.py", _RUNNER_SCRIPT_AGENT)
 
-            yield "[Claude] Claude Code CLIを実行しています...\n\n"
+            yield "[Claude] Running Claude Code CLI...\n\n"
 
             full_response = ""
             async for chunk in self.docker_service.execute_command_stream(
@@ -417,7 +464,7 @@ README:
                 output_buffer = []
 
             # Auto-commit changes
-            yield "\n[GIT] 変更をコミットしています...\n"
+            yield "\n[GIT] Committing changes...\n"
             commit_msg = instruction_content.replace("\n", " ")[:72]
             # Write commit message to temp file to avoid shell escaping issues
             self._write_text_to_container(
@@ -425,7 +472,7 @@ README:
             )
             commit_cmd = (
                 "git add -A && "
-                "git diff --cached --quiet && echo '[GIT] 変更なし（コミットスキップ）' || "
+                "git diff --cached --quiet && echo '[GIT] No changes (skipping commit)' || "
                 "git commit -F /tmp/xolvien_commit_msg.txt"
             )
             _, commit_out, _ = self.docker_service.execute_command(
@@ -449,7 +496,7 @@ README:
             task.status = TaskStatus.IDLE
             await db.commit()
 
-            yield "\n[SYSTEM] 完了しました\n"
+            yield "\n[SYSTEM] Done\n"
 
         except Exception as e:
             error_msg = str(e)
@@ -759,11 +806,17 @@ README:
             raw_output += chunk
 
         # Parse JSON and save to test_case_items
-        yield f"\n{tag} テストケースをDBに保存しています...\n"
+        if lang == "en":
+            yield f"\n{tag} Saving test cases to DB...\n"
+        else:
+            yield f"\n{tag} テストケースをDBに保存しています...\n"
         try:
             items = self._parse_test_cases_json(raw_output)
             if not items:
-                yield f"{tag} ⚠️ テストケースのJSON解析に失敗しました。出力を確認してください。\n"
+                if lang == "en":
+                    yield f"{tag} ⚠️ Failed to parse test case JSON. Please check the output.\n"
+                else:
+                    yield f"{tag} ⚠️ テストケースのJSON解析に失敗しました。出力を確認してください。\n"
                 return
 
             # Delete previous test_case_items of this test_type only (keep other types)
@@ -790,9 +843,15 @@ README:
                 )
                 db.add(tc)
             await db.commit()
-            yield f"{tag} ✅ {len(items)} 件のテストケースを保存しました\n"
+            if lang == "en":
+                yield f"{tag} ✅ Saved {len(items)} test cases\n"
+            else:
+                yield f"{tag} ✅ {len(items)} 件のテストケースを保存しました\n"
         except Exception as e:
-            yield f"{tag} ⚠️ テストケース保存エラー: {e}\n"
+            if lang == "en":
+                yield f"{tag} ⚠️ Failed to save test cases: {e}\n"
+            else:
+                yield f"{tag} ⚠️ テストケース保存エラー: {e}\n"
 
     def _parse_test_cases_json(self, raw: str) -> list[dict]:
         """Extract and parse the JSON array from Claude's output."""
@@ -931,17 +990,17 @@ README:
         if is_e2e:
             tag = "[E2E]"
             report_suffix = "e2e"
-            report_title = "E2Eテスト"
+            report_title = "E2E Test" if lang == "en" else "E2Eテスト"
             commit_prefix = "test(e2e)"
         elif is_integration:
             tag = "[ITEST]"
             report_suffix = "integration"
-            report_title = "結合テスト"
+            report_title = "Integration Test" if lang == "en" else "結合テスト"
             commit_prefix = "test(integration)"
         else:
             tag = "[TEST]"
             report_suffix = "unit"
-            report_title = "単体テスト"
+            report_title = "Unit Test" if lang == "en" else "単体テスト"
             commit_prefix = "test"
 
         result = await db.execute(sa_select(Task).where(Task.id == task_id))
@@ -960,7 +1019,10 @@ README:
         )
         tc_items = tc_result.scalars().all()
         if not tc_items:
-            yield f"{tag} ⚠️ テストケースが登録されていません。先にテストケースを生成・承認してください。\n"
+            if lang == "en":
+                yield f"{tag} ⚠️ No test cases registered. Please generate and approve test cases first.\n"
+            else:
+                yield f"{tag} ⚠️ テストケースが登録されていません。先にテストケースを生成・承認してください。\n"
             return
 
         task.status = TaskStatus.TESTING
@@ -975,13 +1037,21 @@ README:
         await db.commit()
         await db.refresh(test_run)
 
-        yield f"{tag} テストコードを生成しています...\n"
+        if lang == "en":
+            yield f"{tag} Generating test code...\n"
+        else:
+            yield f"{tag} テストコードを生成しています...\n"
 
         tc_summary_lines = []
         for tc in tc_items:
-            tc_summary_lines.append(
-                f"- {tc.tc_id} | {tc.test_item} | 操作: {tc.operation} | 期待出力: {tc.expected_output} | function: {tc.function_name}"
-            )
+            if lang == "en":
+                tc_summary_lines.append(
+                    f"- {tc.tc_id} | {tc.test_item} | operation: {tc.operation} | expected: {tc.expected_output} | function: {tc.function_name}"
+                )
+            else:
+                tc_summary_lines.append(
+                    f"- {tc.tc_id} | {tc.test_item} | 操作: {tc.operation} | 期待出力: {tc.expected_output} | function: {tc.function_name}"
+                )
         tc_summary = "\n".join(tc_summary_lines)
 
         _, file_list, _ = self.docker_service.execute_command(
@@ -1298,12 +1368,15 @@ Notes:
         else:
             test_command = self._detect_test_command(task.container_id)
         if test_command is None:
-            yield f"\n{tag} テストフレームワークが見つかりません。テストコードを確認してください。\n"
+            if lang == "en":
+                yield f"\n{tag} No test framework found. Please check the test code.\n"
+            else:
+                yield f"\n{tag} テストフレームワークが見つかりません。テストコードを確認してください。\n"
             test_run.passed = False
             test_run.exit_code = -1
             test_run.error_output = "No test framework detected"
             test_run.completed_at = datetime.utcnow()
-            test_run.summary = "テストフレームワーク未検出"
+            test_run.summary = "No test framework detected" if lang == "en" else "テストフレームワーク未検出"
             await db.commit()
             task.status = TaskStatus.IDLE
             await db.commit()
@@ -1312,7 +1385,10 @@ Notes:
         test_run.test_command = test_command
         await db.commit()
 
-        yield f"\n{tag} テストを実行しています: {test_command}\n"
+        if lang == "en":
+            yield f"\n{tag} Running tests: {test_command}\n"
+        else:
+            yield f"\n{tag} テストを実行しています: {test_command}\n"
 
         max_retries = 3
         passed = False
@@ -1333,7 +1409,10 @@ Notes:
 
         for attempt in range(max_retries + 1):
             if attempt > 0:
-                yield f"\n{tag} 自動修正 ({attempt}/{max_retries})...\n"
+                if lang == "en":
+                    yield f"\n{tag} Auto-fix ({attempt}/{max_retries})...\n"
+                else:
+                    yield f"\n{tag} 自動修正 ({attempt}/{max_retries})...\n"
 
                 if lang == "en":
                     fix_prompt = f"""The tests failed. Identify the cause and fix it.
@@ -1407,7 +1486,10 @@ Notes:
                 ):
                     yield chunk
 
-                yield f"\n{tag} テストを再実行しています...\n"
+                if lang == "en":
+                    yield f"\n{tag} Re-running tests...\n"
+                else:
+                    yield f"\n{tag} テストを再実行しています...\n"
 
             exit_code, output, error = self.docker_service.execute_command(
                 task.container_id,
@@ -1429,7 +1511,10 @@ Notes:
             test_run.error_output = error
 
             if passed:
-                yield f"\n{tag} ✅ テストがパスしました\n"
+                if lang == "en":
+                    yield f"\n{tag} ✅ Tests passed\n"
+                else:
+                    yield f"\n{tag} ✅ テストがパスしました\n"
                 break
             else:
                 combined_out = output + "\n" + error
@@ -1442,14 +1527,24 @@ Notes:
                     (p for p in infra_error_patterns if p in combined_out), None
                 )
                 if infra_error:
-                    yield f"\n{tag} ⛔ インフラエラーを検出しました（{infra_error}）。自動修正をスキップします。\n"
-                    yield f"{tag} テストコードまたは環境設定を確認してください。\n"
+                    if lang == "en":
+                        yield f"\n{tag} ⛔ Infrastructure error detected ({infra_error}). Skipping auto-fix.\n"
+                        yield f"{tag} Please check the test code or environment configuration.\n"
+                    else:
+                        yield f"\n{tag} ⛔ インフラエラーを検出しました（{infra_error}）。自動修正をスキップします。\n"
+                        yield f"{tag} テストコードまたは環境設定を確認してください。\n"
                     break
 
                 if attempt < max_retries:
-                    yield f"\n{tag} ❌ テストが失敗しました (試行 {attempt + 1}/{max_retries + 1})\n"
+                    if lang == "en":
+                        yield f"\n{tag} ❌ Tests failed (attempt {attempt + 1}/{max_retries + 1})\n"
+                    else:
+                        yield f"\n{tag} ❌ テストが失敗しました (試行 {attempt + 1}/{max_retries + 1})\n"
                 else:
-                    yield f"\n{tag} 最大リトライ回数 ({max_retries}) に達しました。手動対応が必要です。\n"
+                    if lang == "en":
+                        yield f"\n{tag} Max retries ({max_retries}) reached. Manual intervention required.\n"
+                    else:
+                        yield f"\n{tag} 最大リトライ回数 ({max_retries}) に達しました。手動対応が必要です。\n"
 
         # Parse XOLVIEN_RESULT: lines from stdout
         actual_by_tc_id: dict[str, str] = {}
@@ -1503,9 +1598,12 @@ Notes:
             )
             db.add(tcr)
         await db.commit()
-        yield f"{tag} テスト結果を {len(tc_items)} 件保存しました\n"
+        if lang == "en":
+            yield f"{tag} Saved {len(tc_items)} test results\n"
+        else:
+            yield f"{tag} テスト結果を {len(tc_items)} 件保存しました\n"
 
-        # Compute summary from TestCaseResult verdicts (TC件数ベース)
+        # Compute summary from TestCaseResult verdicts
         tc_results_q = await db.execute(
             sa_select(TestCaseResult).where(TestCaseResult.test_run_id == test_run.id)
         )
@@ -1518,7 +1616,7 @@ Notes:
         if n_skipped:
             parts.append(f"{n_skipped} skipped")
         if n_unknown:
-            parts.append(f"{n_unknown} 未判定")
+            parts.append(f"{n_unknown} unknown" if lang == "en" else f"{n_unknown} 未判定")
         summary = ", ".join(parts)
         test_run.summary = summary
 
@@ -1534,9 +1632,14 @@ Notes:
             ).order_by(TestCaseItem.seq_no)
         )
         tc_items2 = tc_result2.scalars().all()
-        report_rows = ["| TC-ID | テスト項目 | 期待出力 | 実際の出力 | 判定 | 実行日時 |",
-                       "|---|---|---|---|---|---|"]
+        if lang == "en":
+            report_rows = ["| TC-ID | Test Item | Expected | Actual | Result | Executed At |",
+                           "|---|---|---|---|---|---|"]
+        else:
+            report_rows = ["| TC-ID | テスト項目 | 期待出力 | 実際の出力 | 判定 | 実行日時 |",
+                           "|---|---|---|---|---|---|"]
         verdict_icon = {Verdict.PASSED: "✅", Verdict.FAILED: "❌", Verdict.ERROR: "⚠️", Verdict.SKIPPED: "⏭️"}
+        not_executed = "Not executed" if lang == "en" else "未実行"
         for tc in tc_items2:
             r_res = await db.execute(
                 sa_select(TestCaseResult)
@@ -1545,14 +1648,36 @@ Notes:
             )
             r = r_res.scalar_one_or_none()
             icon = verdict_icon.get(r.verdict, "—") if r and r.verdict else "—"
-            verdict_str = r.verdict.value if r and r.verdict else "未実行"
+            verdict_str = r.verdict.value if r and r.verdict else not_executed
             actual = (r.actual_output or "—") if r else "—"
             report_rows.append(
                 f"| {tc.tc_id} | {tc.test_item} | {tc.expected_output or '—'} | {actual} | {icon} {verdict_str} | {executed_at_str} |"
             )
         results_table_md = "\n".join(report_rows)
 
-        report_content = f"""# テストレポート（{report_title}）
+        if lang == "en":
+            report_content = f"""# Test Report ({report_title})
+
+| Item | Value |
+|---|---|
+| Executed At | {executed_at_str} |
+| Test Command | `{test_command}` |
+| Result | {"✅ PASS" if passed else "❌ FAIL"} |
+| Retries | {test_run.retry_count} |
+| Summary | {summary} |
+
+## Test Results
+
+{results_table_md}
+
+## Test Execution Log
+
+```
+{(last_output + chr(10) + last_error).strip()[-5000:]}
+```
+"""
+        else:
+            report_content = f"""# テストレポート（{report_title}）
 
 | 項目 | 値 |
 |---|---|
@@ -1586,9 +1711,10 @@ Notes:
 
         commit_msg = f"{commit_prefix}: add {report_suffix} tests ({'pass' if passed else 'fail'})"
         self._write_text_to_container(task.container_id, "/tmp/xolvien_commit_msg.txt", commit_msg)
+        no_changes_msg = "[GIT] No changes" if lang == "en" else "[GIT] 変更なし"
         _, commit_out, _ = self.docker_service.execute_command(
             task.container_id,
-            "git add -A && git diff --cached --quiet && echo '[GIT] 変更なし' || git commit -F /tmp/xolvien_commit_msg.txt",
+            f"git add -A && git diff --cached --quiet && echo '{no_changes_msg}' || git commit -F /tmp/xolvien_commit_msg.txt",
             "/workspace/repo",
         )
         if commit_out.strip():
@@ -1597,8 +1723,12 @@ Notes:
         task.status = TaskStatus.IDLE
         await db.commit()
 
-        yield f"\n{tag} レポートを保存しました: {report_path}\n"
-        yield f"\n[SYSTEM] テスト完了: {summary}\n"
+        if lang == "en":
+            yield f"\n{tag} Report saved: {report_path}\n"
+            yield f"\n[SYSTEM] Tests complete: {summary}\n"
+        else:
+            yield f"\n{tag} レポートを保存しました: {report_path}\n"
+            yield f"\n[SYSTEM] テスト完了: {summary}\n"
 
     def _extract_result_for_function(
         self, output: str, function_name: str | None, tc_id: str | None = None
