@@ -727,6 +727,7 @@ export default function TaskDetail() {
           },
           async () => {
             setGeneratingTestCases(false)
+            setSelectedStep('unit_test')
             try {
               const items = await getTestCaseItems(taskId, 'unit')
               setTestCaseItems(items)
@@ -745,6 +746,7 @@ export default function TaskDetail() {
           },
           (err) => {
             setGeneratingTestCases(false)
+            setSelectedStep('unit_test')
             setChatEntries(prev => prev.map((e, i) =>
               i === streamingEntryIndexRef.current
                 ? { type: 'error', message: `${t.testCaseGenError}${err}` }
