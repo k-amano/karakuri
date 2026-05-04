@@ -706,55 +706,7 @@ export default function TaskDetail() {
           return prev.map((e, i) => i === realIdx ? { type: 'implementation_done' } : e)
         })
 
-        setGeneratingTestCases(true)
-        setChatEntries(prev => {
-          streamingEntryIndexRef.current = prev.length
-          return [...prev, { type: 'test_cases_generating' }]
-        })
-
-        streamKeyRef.current += 1
-        const tcStreamKey = `stream-${streamKeyRef.current}`
-        setLogEntries(prev => [...prev, { kind: 'stream', text: '', key: tcStreamKey }])
-        await generateTestCasesStream(
-          taskId,
-          prompt,
-          (chunk) => {
-            setLogEntries(prev => prev.map(entry =>
-              entry.kind === 'stream' && entry.key === tcStreamKey
-                ? { ...entry, text: entry.text + chunk }
-                : entry
-            ))
-          },
-          async () => {
-            setGeneratingTestCases(false)
-            setSelectedStep('unit_test')
-            try {
-              const items = await getTestCaseItems(taskId, 'unit')
-              setTestCaseItems(items)
-              setChatEntries(prev => prev.map((e, i) =>
-                i === streamingEntryIndexRef.current
-                  ? { type: 'test_cases_ready', items, approved: false }
-                  : e
-              ))
-            } catch {
-              setChatEntries(prev => prev.map((e, i) =>
-                i === streamingEntryIndexRef.current
-                  ? { type: 'error', message: t.testCaseFetchError }
-                  : e
-              ))
-            }
-          },
-          (err) => {
-            setGeneratingTestCases(false)
-            setSelectedStep('unit_test')
-            setChatEntries(prev => prev.map((e, i) =>
-              i === streamingEntryIndexRef.current
-                ? { type: 'error', message: `${t.testCaseGenError}${err}` }
-                : e
-            ))
-          },
-          lang
-        )
+        setSelectedStep('unit_test')
       },
       (err) => {
         setStreaming(false)
@@ -1272,7 +1224,9 @@ export default function TaskDetail() {
     setLogEntries(prev => [...prev, { kind: 'stream', text: '', key: tcStreamKey }])
     await generateTestCasesStream(
       taskId,
-      confirmedPrompt + '\n\n## 前回のテストケースへの指摘\n' + revisionFeedback,
+      revisionFeedback.trim()
+        ? confirmedPrompt + '\n\n## 前回のテストケースへの指摘\n' + revisionFeedback
+        : confirmedPrompt,
       (chunk) => {
         setLogEntries(prev => prev.map(entry =>
           entry.kind === 'stream' && entry.key === tcStreamKey
@@ -1810,7 +1764,7 @@ export default function TaskDetail() {
             <button className="btn-primary" onClick={() => handleApproveTestCases(items)} disabled={isBusy}>
               {runningTests ? t.runningTestsBtn : t.approveAndRunTests}
             </button>
-            <button className="btn-secondary" onClick={() => handleRevisionRequest(instruction)} disabled={isBusy || !instruction.trim()}>
+            <button className="btn-secondary" onClick={() => handleRevisionRequest(instruction)} disabled={isBusy}>
               {t.requestRevision}
             </button>
           </div>
