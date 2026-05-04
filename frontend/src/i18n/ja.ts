@@ -110,6 +110,7 @@ export const ja = {
   testCasesLabel: 'テストケース',
   testCasesApproved: '(承認済み)',
   testCasesNone: 'テストケースがまだ生成されていません',
+  testCasesPendingApproval: (n: number) => `— ${n} 件　下のボタンで承認`,
   containerNotRunning: 'タスクのコンテナが起動していません（ステータス: ',
   containerNotRunningClose: '）',
   colId: 'ID',

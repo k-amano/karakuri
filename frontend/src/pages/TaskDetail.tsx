@@ -1451,7 +1451,7 @@ export default function TaskDetail() {
             borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: '#6366f1', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
-              {t.testCasesLabel} {entry.approved ? t.testCasesApproved : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
+              {t.testCasesLabel} {entry.approved ? t.testCasesApproved : t.testCasesPendingApproval(entry.items.length)}
             </div>
             {entry.items.length === 0 ? (
               <div style={{ color: '#475569', fontSize: '0.82rem' }}>
@@ -1509,7 +1509,7 @@ export default function TaskDetail() {
             borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: '#a855f7', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
-              {t.integrationTCLabel} {entry.approved ? t.testCasesApproved : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
+              {t.integrationTCLabel} {entry.approved ? t.testCasesApproved : t.testCasesPendingApproval(entry.items.length)}
             </div>
             {entry.items.length === 0 ? (
               <div style={{ color: '#475569', fontSize: '0.82rem' }}>
@@ -1567,7 +1567,7 @@ export default function TaskDetail() {
             borderRadius: '6px', padding: '12px', fontSize: '0.82rem',
           }}>
             <div style={{ color: '#06b6d4', fontSize: '0.72rem', marginBottom: '8px', fontWeight: 600 }}>
-              {t.e2eTCLabel} {entry.approved ? t.testCasesApproved : `— ${entry.items.length} 件${entry.items.length > 0 ? '　下のボタンで承認' : ''}`}
+              {t.e2eTCLabel} {entry.approved ? t.testCasesApproved : t.testCasesPendingApproval(entry.items.length)}
             </div>
             {entry.items.length === 0 ? (
               <div style={{ color: '#475569', fontSize: '0.82rem' }}>

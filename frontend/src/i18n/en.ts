@@ -100,6 +100,7 @@ export const en = {
   testCasesLabel: 'Test Cases',
   testCasesApproved: '(approved)',
   testCasesNone: 'No test cases generated yet',
+  testCasesPendingApproval: (n: number) => `— ${n} cases  Approve with the button below`,
   containerNotRunning: 'Container is not running (status: ',
   containerNotRunningClose: ')',
   colId: 'ID',
