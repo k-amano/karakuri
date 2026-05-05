@@ -1037,10 +1037,11 @@ README:
         await db.commit()
         await db.refresh(test_run)
 
+        total_tc = len(tc_items)
         if lang == "en":
-            yield f"{tag} Generating test code...\n"
+            yield f"{tag} Generating test code... (0/{total_tc})\n"
         else:
-            yield f"{tag} テストコードを生成しています...\n"
+            yield f"{tag} テストコードを生成しています... (0/{total_tc})\n"
 
         tc_summary_lines = []
         for tc in tc_items:
@@ -1053,6 +1054,28 @@ README:
                     f"- {tc.tc_id} | {tc.test_item} | 操作: {tc.operation} | 期待出力: {tc.expected_output} | function: {tc.function_name}"
                 )
         tc_summary = "\n".join(tc_summary_lines)
+
+        # Progress marker instruction — injected into every gen_prompt
+        tc_id_list = " ".join(tc.tc_id for tc in tc_items)
+        xolvien_marker_instruction = f"""
+## Progress reporting (MANDATORY)
+For each test case, you MUST output these two marker lines at the exact moments described.
+Do NOT skip or merge them. Output them as standalone lines with nothing else on the line.
+
+Before you start writing the test function for each test case:
+  [XOLVIEN_TC_START] <tc_id>
+
+After you finish writing the test function for each test case:
+  [XOLVIEN_TC_DONE] <tc_id>
+
+Test case IDs to cover (in order): {tc_id_list}
+Total: {total_tc} cases
+
+Example for TC-001:
+  [XOLVIEN_TC_START] TC-001
+  ... (write the test function here) ...
+  [XOLVIEN_TC_DONE] TC-001
+"""
 
         _, file_list, _ = self.docker_service.execute_command(
             task.container_id,
@@ -1105,6 +1128,8 @@ Generate a function for each test case's function_name and write test code based
 ## Project file list
 {file_list.strip()}
 
+{xolvien_marker_instruction}
+
 ## Steps (execute in order)
 
 1. Read `package.json`, `pyproject.toml`, or `requirements*.txt` to identify how to start the app
@@ -1126,7 +1151,7 @@ Generate a function for each test case's function_name and write test code based
    - Python: `uvicorn app:app &` or `flask run &`
 5. **Create E2E test file in `e2e/` directory (Node.js: `e2e/tests.spec.js`)**
    - Use `@playwright/test`'s `test` / `expect` — **do NOT use Jest's `test()`**
-   - Set test names matching each test case's function_name
+   - For each test case in order, output [XOLVIEN_TC_START] <tc_id>, write the test function, then output [XOLVIEN_TC_DONE] <tc_id>
    - Output `console.log('XOLVIEN_RESULT:' + JSON.stringify({{tc_id: 'E2E-001', actual: 'actual value'}}))` at the start of each test
 
    **Node.js Playwright example:**
@@ -1169,6 +1194,8 @@ Notes:
 ## プロジェクトのファイル一覧
 {file_list.strip()}
 
+{xolvien_marker_instruction}
+
 ## 実行手順（順番通りに行うこと）
 
 1. `package.json` や `pyproject.toml`、`requirements*.txt` を読み込み、アプリの起動方法を特定してください
@@ -1190,7 +1217,7 @@ Notes:
    - Python の場合: `uvicorn app:app &` や `flask run &` などで起動すること
 5. **E2E テストファイルを `e2e/` ディレクトリに作成してください（Node.js の場合: `e2e/tests.spec.js`）**
    - `@playwright/test` の `test` / `expect` を使い、**Jest の `test()` は使わないこと**
-   - 各テストケースの function_name に対応したテスト名を設定すること
+   - 各テストケースを順番に処理し、[XOLVIEN_TC_START] <tc_id> を出力→関数を書く→[XOLVIEN_TC_DONE] <tc_id> を出力すること
    - 各テストの先頭で `console.log('XOLVIEN_RESULT:' + JSON.stringify({{tc_id: 'E2E-001', actual: 'actual value'}}))` を出力すること
 
    **Node.js Playwright の例:**
@@ -1234,6 +1261,8 @@ Generate a function for each test case's function_name and write test code based
 ## Project file list
 {file_list.strip()}
 
+{xolvien_marker_instruction}
+
 ## Steps (execute in order)
 
 1. Read `package.json`, `pyproject.toml`, or `requirements*.txt` to identify the test framework and how to start the app
@@ -1243,7 +1272,7 @@ Generate a function for each test case's function_name and write test code based
    - Python: `uvicorn app:app &` or `flask run &`
    - If DB is needed: set up test DB connection strings
    - Verify startup: confirm health-check endpoint is reachable with `curl` or `wget`
-4. Generate functions for all test cases using the specified function_name
+4. For each test case in order, output [XOLVIEN_TC_START] <tc_id>, write the test function, then output [XOLVIEN_TC_DONE] <tc_id>
    - Use actual HTTP requests (axios, requests, fetch, httpx, etc.) to call the API
    - Use real DB connections if DB state verification is needed
 {xolvien_result_instruction}
@@ -1270,6 +1299,8 @@ Notes:
 ## プロジェクトのファイル一覧
 {file_list.strip()}
 
+{xolvien_marker_instruction}
+
 ## 実行手順（順番通りに行うこと）
 
 1. `package.json` や `pyproject.toml`、`requirements*.txt` を読み込み、テストフレームワークとアプリの起動方法を特定してください
@@ -1279,7 +1310,7 @@ Notes:
    - Python の場合: `uvicorn app:app &` や `flask run &` などでサーバーを起動すること
    - DB が必要な場合: テスト用DB接続文字列をセットアップすること
    - サーバーの起動確認: `curl` や `wget` でヘルスチェックエンドポイントに到達できることを確認すること
-4. テストケース一覧の全ケースについて、指定された function_name で関数を生成してください
+4. 各テストケースを順番に処理し、[XOLVIEN_TC_START] <tc_id> を出力→関数を書く→[XOLVIEN_TC_DONE] <tc_id> を出力してください
    - 実際の HTTP リクエスト（axios, requests, fetch, httpx 等）を使ってAPIを呼び出すこと
    - DBの状態確認が必要な場合は実際のDB接続を使うこと
 {xolvien_result_instruction}
@@ -1307,11 +1338,13 @@ Generate a function for each test case's function_name and write test code based
 ## Project file list
 {file_list.strip()}
 
+{xolvien_marker_instruction}
+
 ## Steps (execute in order)
 
 1. Read `package.json`, `pyproject.toml`, or `requirements*.txt` to identify the test framework (Jest, pytest, etc.)
 2. Check existing test files and follow their naming conventions and structure
-3. Generate functions for all test cases using the specified function_name
+3. For each test case in order, output [XOLVIEN_TC_START] <tc_id>, write the test function, then output [XOLVIEN_TC_DONE] <tc_id>
 {xolvien_result_instruction}
 4. Install required dependencies
 5. Run the tests
@@ -1335,11 +1368,13 @@ Notes:
 ## プロジェクトのファイル一覧
 {file_list.strip()}
 
+{xolvien_marker_instruction}
+
 ## 実行手順（順番通りに行うこと）
 
 1. `package.json` や `pyproject.toml`、`requirements*.txt` を読み込み、テストフレームワーク（Jest, pytest 等）を特定してください
 2. 既存のテストファイルがあれば確認し、命名規則・構造に従ってください
-3. テストケース一覧の全ケースについて、指定された function_name で関数を生成してください
+3. 各テストケースを順番に処理し、[XOLVIEN_TC_START] <tc_id> を出力→関数を書く→[XOLVIEN_TC_DONE] <tc_id> を出力してください
 {xolvien_result_instruction}
 4. テストの実行に必要な依存パッケージをインストールしてください
 5. テストを実行してください
@@ -1353,12 +1388,49 @@ Notes:
         self._write_text_to_container(task.container_id, "/tmp/xolvien_prompt.txt", gen_prompt)
         self._write_text_to_container(task.container_id, "/tmp/xolvien_runner.py", _RUNNER_SCRIPT_AGENT)
 
+        # Stream test code generation with marker detection and timeout
+        TIMEOUT_SECONDS = 300  # 5 min without any marker = abort
+        gen_start = datetime.utcnow()
+        last_marker_time = datetime.utcnow()
+        tc_done_count = 0
+        timed_out = False
+
         async for chunk in self.docker_service.execute_command_stream(
             task.container_id,
             "python3 /tmp/xolvien_runner.py",
             "/workspace/repo",
         ):
             yield chunk
+            now = datetime.utcnow()
+            for line in chunk.splitlines():
+                line = line.strip()
+                if line.startswith("[XOLVIEN_TC_START]"):
+                    last_marker_time = now
+                elif line.startswith("[XOLVIEN_TC_DONE]"):
+                    last_marker_time = now
+                    tc_done_count += 1
+                    elapsed_ms = int((now - gen_start).total_seconds() * 1000)
+                    remaining = total_tc - tc_done_count
+                    avg_ms = elapsed_ms // tc_done_count if tc_done_count else 0
+                    eta_ms = avg_ms * remaining
+                    yield f"[XOLVIEN_PROGRESS] {tc_done_count}/{total_tc} elapsed_ms={elapsed_ms} eta_ms={eta_ms}\n"
+            # Timeout check: no marker for TIMEOUT_SECONDS
+            if (now - last_marker_time).total_seconds() > TIMEOUT_SECONDS:
+                timed_out = True
+                if lang == "en":
+                    yield f"\n{tag} ⛔ Timeout: no progress for {TIMEOUT_SECONDS}s. Aborting test code generation.\n"
+                else:
+                    yield f"\n{tag} ⛔ タイムアウト: {TIMEOUT_SECONDS}秒間進捗なし。テストコード生成を中断します。\n"
+                test_run.passed = False
+                test_run.completed_at = datetime.utcnow()
+                test_run.summary = "Timeout during test code generation" if lang == "en" else "テストコード生成タイムアウト"
+                await db.commit()
+                task.status = TaskStatus.IDLE
+                await db.commit()
+                return
+
+        if timed_out:
+            return
 
         if is_e2e:
             test_command = self._detect_e2e_test_command(task.container_id)

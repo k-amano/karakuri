@@ -157,6 +157,7 @@ export default function TaskDetail() {
   const [runningTestType, setRunningTestType] = useState<'unit' | 'integration' | 'e2e' | null>(null)
   const [testPhaseLabel, setTestPhaseLabel] = useState<string | null>(null)
   const testCountRef = useRef({ passed: 0, failed: 0 })
+  const genCodeProgressRef = useRef({ done: 0, total: 0, startMs: 0 })
   const setTestResultSummary = (_v: string | null) => { /* stored in chatEntries */ }
   const setTestPassed = (_v: boolean | null) => { /* stored in chatEntries */ }
   const [, setTestCaseItems] = useState<TestCaseItem[]>([])
@@ -735,6 +736,7 @@ export default function TaskDetail() {
       streamingEntryIndexRef.current = prev.length
       return [...prev, { type: 'test_running', label: t.bannerTestGeneratingCode }]
     })
+    genCodeProgressRef.current = { done: 0, total: 0, startMs: Date.now() }
 
     streamKeyRef.current += 1
     const currentKey = `stream-${streamKeyRef.current}`
@@ -752,31 +754,43 @@ export default function TaskDetail() {
           )
         )
         let newLabel: string | null = null
-        if (/\[TEST\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
-          testCountRef.current = { passed: 0, failed: 0 }
-          newLabel = t.progressRunning(0, 0)
-        } else if (/\[TEST\] (Auto-fix|自動修正)/.test(chunk)) {
-          const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
-          newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
-        } else {
-          let updated = false
-          for (const line of chunk.split('\n')) {
-            if (/\bPASSED\b/.test(line) || /^\s*✓/.test(line) || /^\s*✔/.test(line)) {
-              testCountRef.current.passed += 1; updated = true
-            } else if (/\bFAILED\b/.test(line) || /^\s*✕/.test(line) || /^\s*✗/.test(line) || /^\s*×/.test(line)) {
-              testCountRef.current.failed += 1; updated = true
-            }
-            const dotMatch = line.match(/^[.F]+$/)
-            if (dotMatch) {
-              testCountRef.current.passed += (line.match(/\./g) ?? []).length
-              testCountRef.current.failed += (line.match(/F/g) ?? []).length
-              updated = true
-            }
+        for (const line of chunk.split('\n')) {
+          const progressMatch = line.match(/^\[XOLVIEN_PROGRESS\] (\d+)\/(\d+) elapsed_ms=(\d+) eta_ms=(\d+)/)
+          if (progressMatch) {
+            const done = Number(progressMatch[1])
+            const total = Number(progressMatch[2])
+            const etaMs = Number(progressMatch[4])
+            genCodeProgressRef.current = { done, total, startMs: genCodeProgressRef.current.startMs }
+            const etaSec = etaMs > 0 ? Math.ceil(etaMs / 1000) : null
+            newLabel = t.progressGenCode(done, total, etaSec)
           }
-          if (updated) {
-            const { passed, failed } = testCountRef.current
-            const total = passed + failed
-            newLabel = t.progressRunning(total, failed)
+        }
+        if (!newLabel) {
+          if (/\[TEST\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
+            testCountRef.current = { passed: 0, failed: 0 }
+            newLabel = t.progressRunning(0, 0)
+          } else if (/\[TEST\] (Auto-fix|自動修正)/.test(chunk)) {
+            const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
+            newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
+          } else {
+            let updated = false
+            for (const line of chunk.split('\n')) {
+              if (/\bPASSED\b/.test(line) || /^\s*✓/.test(line) || /^\s*✔/.test(line)) {
+                testCountRef.current.passed += 1; updated = true
+              } else if (/\bFAILED\b/.test(line) || /^\s*✕/.test(line) || /^\s*✗/.test(line) || /^\s*×/.test(line)) {
+                testCountRef.current.failed += 1; updated = true
+              }
+              const dotMatch = line.match(/^[.F]+$/)
+              if (dotMatch) {
+                testCountRef.current.passed += (line.match(/\./g) ?? []).length
+                testCountRef.current.failed += (line.match(/F/g) ?? []).length
+                updated = true
+              }
+            }
+            if (updated) {
+              const { passed, failed } = testCountRef.current
+              newLabel = t.progressRunning(passed + failed, failed)
+            }
           }
         }
         if (newLabel) {
@@ -842,6 +856,7 @@ export default function TaskDetail() {
       streamingEntryIndexRef.current = prev.length
       return [...prev, { type: 'test_running', label: `${t.bannerIntegrationTest}${t.bannerTestGeneratingCode}` }]
     })
+    genCodeProgressRef.current = { done: 0, total: 0, startMs: Date.now() }
 
     streamKeyRef.current += 1
     const currentKey = `stream-${streamKeyRef.current}`
@@ -859,25 +874,37 @@ export default function TaskDetail() {
           )
         )
         let newLabel: string | null = null
-        if (/\[ITEST\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
-          testCountRef.current = { passed: 0, failed: 0 }
-          newLabel = t.progressIntegration(0, 0)
-        } else if (/\[ITEST\] (Auto-fix|自動修正)/.test(chunk)) {
-          const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
-          newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
-        } else {
-          let updated = false
-          for (const line of chunk.split('\n')) {
-            if (/\bPASSED\b/.test(line) || /^\s*✓/.test(line) || /^\s*✔/.test(line)) {
-              testCountRef.current.passed += 1; updated = true
-            } else if (/\bFAILED\b/.test(line) || /^\s*✕/.test(line) || /^\s*✗/.test(line) || /^\s*×/.test(line)) {
-              testCountRef.current.failed += 1; updated = true
-            }
+        for (const line of chunk.split('\n')) {
+          const progressMatch = line.match(/^\[XOLVIEN_PROGRESS\] (\d+)\/(\d+) elapsed_ms=(\d+) eta_ms=(\d+)/)
+          if (progressMatch) {
+            const done = Number(progressMatch[1])
+            const total = Number(progressMatch[2])
+            const etaMs = Number(progressMatch[4])
+            genCodeProgressRef.current = { done, total, startMs: genCodeProgressRef.current.startMs }
+            const etaSec = etaMs > 0 ? Math.ceil(etaMs / 1000) : null
+            newLabel = t.progressGenCode(done, total, etaSec)
           }
-          if (updated) {
-            const { passed, failed } = testCountRef.current
-            const total = passed + failed
-            newLabel = t.progressIntegration(total, failed)
+        }
+        if (!newLabel) {
+          if (/\[ITEST\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
+            testCountRef.current = { passed: 0, failed: 0 }
+            newLabel = t.progressIntegration(0, 0)
+          } else if (/\[ITEST\] (Auto-fix|自動修正)/.test(chunk)) {
+            const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
+            newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
+          } else {
+            let updated = false
+            for (const line of chunk.split('\n')) {
+              if (/\bPASSED\b/.test(line) || /^\s*✓/.test(line) || /^\s*✔/.test(line)) {
+                testCountRef.current.passed += 1; updated = true
+              } else if (/\bFAILED\b/.test(line) || /^\s*✕/.test(line) || /^\s*✗/.test(line) || /^\s*×/.test(line)) {
+                testCountRef.current.failed += 1; updated = true
+              }
+            }
+            if (updated) {
+              const { passed, failed } = testCountRef.current
+              newLabel = t.progressIntegration(passed + failed, failed)
+            }
           }
         }
         if (newLabel) {
@@ -1049,6 +1076,7 @@ export default function TaskDetail() {
       streamingEntryIndexRef.current = prev.length
       return [...prev, { type: 'test_running', label: `${t.bannerE2ETest}${t.bannerTestGeneratingCode}` }]
     })
+    genCodeProgressRef.current = { done: 0, total: 0, startMs: Date.now() }
 
     streamKeyRef.current += 1
     const currentKey = `stream-${streamKeyRef.current}`
@@ -1066,25 +1094,37 @@ export default function TaskDetail() {
           )
         )
         let newLabel: string | null = null
-        if (/\[E2E\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
-          testCountRef.current = { passed: 0, failed: 0 }
-          newLabel = t.progressE2E(0, 0)
-        } else if (/\[E2E\] (Auto-fix|自動修正)/.test(chunk)) {
-          const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
-          newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
-        } else {
-          let updated = false
-          for (const line of chunk.split('\n')) {
-            if (/\bPASSED\b/.test(line) || /^\s*✓/.test(line) || /^\s*✔/.test(line)) {
-              testCountRef.current.passed += 1; updated = true
-            } else if (/\bFAILED\b/.test(line) || /^\s*✕/.test(line) || /^\s*✗/.test(line) || /^\s*×/.test(line)) {
-              testCountRef.current.failed += 1; updated = true
-            }
+        for (const line of chunk.split('\n')) {
+          const progressMatch = line.match(/^\[XOLVIEN_PROGRESS\] (\d+)\/(\d+) elapsed_ms=(\d+) eta_ms=(\d+)/)
+          if (progressMatch) {
+            const done = Number(progressMatch[1])
+            const total = Number(progressMatch[2])
+            const etaMs = Number(progressMatch[4])
+            genCodeProgressRef.current = { done, total, startMs: genCodeProgressRef.current.startMs }
+            const etaSec = etaMs > 0 ? Math.ceil(etaMs / 1000) : null
+            newLabel = t.progressGenCode(done, total, etaSec)
           }
-          if (updated) {
-            const { passed, failed } = testCountRef.current
-            const total = passed + failed
-            newLabel = t.progressE2E(total, failed)
+        }
+        if (!newLabel) {
+          if (/\[E2E\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
+            testCountRef.current = { passed: 0, failed: 0 }
+            newLabel = t.progressE2E(0, 0)
+          } else if (/\[E2E\] (Auto-fix|自動修正)/.test(chunk)) {
+            const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
+            newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
+          } else {
+            let updated = false
+            for (const line of chunk.split('\n')) {
+              if (/\bPASSED\b/.test(line) || /^\s*✓/.test(line) || /^\s*✔/.test(line)) {
+                testCountRef.current.passed += 1; updated = true
+              } else if (/\bFAILED\b/.test(line) || /^\s*✕/.test(line) || /^\s*✗/.test(line) || /^\s*×/.test(line)) {
+                testCountRef.current.failed += 1; updated = true
+              }
+            }
+            if (updated) {
+              const { passed, failed } = testCountRef.current
+              newLabel = t.progressE2E(passed + failed, failed)
+            }
           }
         }
         if (newLabel) {
@@ -2233,7 +2273,9 @@ export default function TaskDetail() {
                   } else {
                     return (
                       <p key={entry.key} className="log-stream-chunk">
-                        {entry.text || t.cliStarting}
+                        {entry.text
+                          ? entry.text.split('\n').filter(l => !l.startsWith('[XOLVIEN_PROGRESS]') && !l.startsWith('[XOLVIEN_TC_START]') && !l.startsWith('[XOLVIEN_TC_DONE]')).join('\n')
+                          : t.cliStarting}
                       </p>
                     )
                   }

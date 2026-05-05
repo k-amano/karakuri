@@ -82,6 +82,10 @@ export const en = {
   bannerE2ETest: 'E2E Test',
   bannerTest: 'Test',
   bannerTestGeneratingCode: 'Generating test code',
+  progressGenCode: (done: number, total: number, etaSec: number | null) =>
+    etaSec !== null
+      ? `Generating test code: ${done} / ${total}  (~${etaSec}s remaining)`
+      : `Generating test code: ${done} / ${total}`,
 
   noLogs: 'No logs yet...',
   cliStarting: 'Starting Claude Code CLI...',

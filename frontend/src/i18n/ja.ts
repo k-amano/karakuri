@@ -90,6 +90,10 @@ export const ja = {
   bannerE2ETest: 'E2Eテスト',
   bannerTest: 'テスト',
   bannerTestGeneratingCode: 'テストコードを生成中',
+  progressGenCode: (done: number, total: number, etaSec: number | null) =>
+    etaSec !== null
+      ? `テストコード生成中: ${done} / ${total}  (残り約${etaSec}秒)`
+      : `テストコード生成中: ${done} / ${total}`,
 
   // TaskDetail - log viewer
   noLogs: 'ログはまだありません...',
