@@ -33,7 +33,6 @@ interface StepInfo {
   id: StepId
   label: string
   status: StepStatus
-  resultLabel?: string
   future?: boolean
 }
 
@@ -326,20 +325,20 @@ export default function TaskDetail() {
             case 'unit_test':
               if (!lastUnit) return hasImpl ? { ...step, status: 'active' } : step
               return lastUnit.passed
-                ? { ...step, status: 'done_pass', resultLabel: lastUnit.summary ?? undefined }
-                : { ...step, status: 'done_fail', resultLabel: lastUnit.summary ?? undefined }
+                ? { ...step, status: 'done_pass' }
+                : { ...step, status: 'done_fail' }
             case 'integration_test':
               if (!lastUnit?.passed) return step
               if (!lastIntegration) return { ...step, status: 'active' }
               return lastIntegration.passed
-                ? { ...step, status: 'done_pass', resultLabel: lastIntegration.summary ?? undefined }
-                : { ...step, status: 'done_fail', resultLabel: lastIntegration.summary ?? undefined }
+                ? { ...step, status: 'done_pass' }
+                : { ...step, status: 'done_fail' }
             case 'e2e_test':
               if (!lastIntegration?.passed) return step
               if (!lastE2E) return { ...step, status: 'active' }
               return lastE2E.passed
-                ? { ...step, status: 'done_pass', resultLabel: lastE2E.summary ?? undefined }
-                : { ...step, status: 'done_fail', resultLabel: lastE2E.summary ?? undefined }
+                ? { ...step, status: 'done_pass' }
+                : { ...step, status: 'done_fail' }
             case 'review':
               return lastE2E?.passed ? { ...step, status: 'active' } : step
             default:
@@ -802,7 +801,7 @@ export default function TaskDetail() {
             setTestResultSummary(lastUnit.summary ?? null)
             setTestPassed(lastUnit.passed)
             setSteps(prev => prev.map(s => {
-              if (s.id === 'unit_test') return { ...s, status: lastUnit.passed ? 'done_pass' : 'done_fail', resultLabel: lastUnit.summary ?? undefined }
+              if (s.id === 'unit_test') return { ...s, status: lastUnit.passed ? 'done_pass' : 'done_fail' }
               if (s.id === 'integration_test' && lastUnit.passed) return { ...s, status: 'active' }
               return s
             }))
@@ -903,7 +902,7 @@ export default function TaskDetail() {
             setTestResultSummary(lastIntegration.summary ?? null)
             setTestPassed(lastIntegration.passed)
             setSteps(prev => prev.map(s => {
-              if (s.id === 'integration_test') return { ...s, status: lastIntegration.passed ? 'done_pass' : 'done_fail', resultLabel: lastIntegration.summary ?? undefined }
+              if (s.id === 'integration_test') return { ...s, status: lastIntegration.passed ? 'done_pass' : 'done_fail' }
               if (s.id === 'e2e_test' && lastIntegration.passed) return { ...s, status: 'active' }
               return s
             }))
@@ -1110,7 +1109,7 @@ export default function TaskDetail() {
             setTestResultSummary(lastE2E.summary ?? null)
             setTestPassed(lastE2E.passed)
             setSteps(prev => prev.map(s => {
-              if (s.id === 'e2e_test') return { ...s, status: lastE2E.passed ? 'done_pass' : 'done_fail', resultLabel: lastE2E.summary ?? undefined }
+              if (s.id === 'e2e_test') return { ...s, status: lastE2E.passed ? 'done_pass' : 'done_fail' }
               if (s.id === 'review' && lastE2E.passed) return { ...s, status: 'active' }
               return s
             }))
