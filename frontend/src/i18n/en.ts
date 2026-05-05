@@ -84,7 +84,7 @@ export const en = {
   bannerTestGeneratingCode: 'Generating test code',
 
   noLogs: 'No logs yet...',
-  cliStarting: '⏳ Starting Claude Code CLI...',
+  cliStarting: 'Starting Claude Code CLI...',
 
   yourInstruction: 'Your instruction',
   claudeLabel: 'Claude',

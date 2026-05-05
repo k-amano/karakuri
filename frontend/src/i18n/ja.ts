@@ -93,7 +93,7 @@ export const ja = {
 
   // TaskDetail - log viewer
   noLogs: 'ログはまだありません...',
-  cliStarting: '⏳ Claude Code CLI 起動中...',
+  cliStarting: 'Claude Code CLI 起動中...',
 
   // TaskDetail - chat entries
   yourInstruction: 'あなたの指示',

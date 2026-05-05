@@ -292,7 +292,6 @@ export default function TaskCreate() {
               >
                 {submitting ? (
                   <>
-                    <span className="spinner" />
                     {t.creating}
                   </>
                 ) : (

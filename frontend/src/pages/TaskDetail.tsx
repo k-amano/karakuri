@@ -1373,7 +1373,7 @@ export default function TaskDetail() {
             whiteSpace: 'pre-wrap', lineHeight: 1.6,
           }}>
             <span style={{ fontSize: '0.72rem', color: '#6366f1', marginBottom: '4px', display: 'block', fontWeight: 600 }}>{t.claudeLabel}</span>
-            {displayContent || <><span className="spinner" style={{ width: '10px', height: '10px', marginRight: '4px' }} />{t.thinking}</>}
+            {displayContent || t.thinking}
           </div>
         )
       }
@@ -1385,7 +1385,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-            <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
+
             {t.generatingPrompt}
           </div>
         )
@@ -1416,7 +1416,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#93c5fd',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-            <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
+
             {t.implementationRunning}
           </div>
         )
@@ -1439,7 +1439,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-            <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
+
             {t.generatingTestCasesMsg}
           </div>
         )
@@ -1497,7 +1497,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-            <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
+
             {t.generatingIntegrationTC}
           </div>
         )
@@ -1555,7 +1555,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-            <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
+
             {t.generatingE2ETC}
           </div>
         )
@@ -1613,7 +1613,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#93c5fd',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-            <span className="spinner" style={{ width: '12px', height: '12px', marginRight: 0 }} />
+
             {entry.label}
           </div>
         )
@@ -2193,7 +2193,6 @@ export default function TaskDetail() {
                 gap: '8px',
                 flexShrink: 0,
               }}>
-                <span className="spinner" />
                 {clarifying
                   ? t.bannerClarifying
                   : generating
