@@ -194,23 +194,16 @@ class DockerService:
         container_id: str,
         command: str,
         workdir: str = "/workspace/repo",
+        chunk_timeout: float = 60.0,
     ) -> AsyncGenerator[str, None]:
         """
-        Execute a command and stream output line by line.
-
-        Args:
-            container_id: Container ID
-            command: Command to execute
-            workdir: Working directory
-
-        Yields:
-            Output lines
+        Execute a command and stream output chunk by chunk.
+        chunk_timeout: seconds to wait for the next chunk before raising TimeoutError.
         """
         try:
             self.ensure_container_running(container_id)
             container = self.client.containers.get(container_id)
 
-            # Execute with streaming
             exec_instance = container.exec_run(
                 ["bash", "-c", command],
                 workdir=workdir,
@@ -218,18 +211,36 @@ class DockerService:
                 demux=True,
             )
 
+            queue: asyncio.Queue[str | None] = asyncio.Queue()
             decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-            for stdout_chunk, _stderr_chunk in exec_instance.output:
-                chunk = stdout_chunk or b""
-                if chunk:
-                    text = decoder.decode(chunk)
-                    if text:
-                        yield text
-                await asyncio.sleep(0.01)
-            remaining = decoder.decode(b"", final=True)
-            if remaining:
-                yield remaining
+            loop = asyncio.get_event_loop()
 
+            def _read_thread():
+                try:
+                    for stdout_chunk, _stderr_chunk in exec_instance.output:
+                        raw = stdout_chunk or b""
+                        if raw:
+                            text = decoder.decode(raw)
+                            if text:
+                                loop.call_soon_threadsafe(queue.put_nowait, text)
+                    remaining = decoder.decode(b"", final=True)
+                    if remaining:
+                        loop.call_soon_threadsafe(queue.put_nowait, remaining)
+                finally:
+                    loop.call_soon_threadsafe(queue.put_nowait, None)  # sentinel
+
+            import threading
+            thread = threading.Thread(target=_read_thread, daemon=True)
+            thread.start()
+
+            while True:
+                item = await asyncio.wait_for(queue.get(), timeout=chunk_timeout)
+                if item is None:
+                    break
+                yield item
+
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"Stream timed out: no output for {chunk_timeout}s")
         except NotFound:
             raise RuntimeError(f"Container {container_id} not found")
         except Exception as e:

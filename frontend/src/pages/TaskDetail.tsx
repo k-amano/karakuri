@@ -85,6 +85,15 @@ function formatLogTimestamp(dateStr: string): string {
   }
 }
 
+function fmtHms(sec: number): string {
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = sec % 60
+  return h > 0
+    ? `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 // A log entry can be either a structured TaskLog or a stream chunk
 type LogEntry =
   | { kind: 'log'; data: TaskLog }
@@ -153,6 +162,7 @@ export default function TaskDetail() {
 
   // Test case / test run state
   const [generatingTestCases, setGeneratingTestCases] = useState(false)
+  const [tcGenLabel, setTcGenLabel] = useState<string | null>(null)
   const [runningTests, setRunningTests] = useState(false)
   const [runningTestType, setRunningTestType] = useState<'unit' | 'integration' | 'e2e' | null>(null)
   const [testPhaseLabel, setTestPhaseLabel] = useState<string | null>(null)
@@ -761,15 +771,15 @@ export default function TaskDetail() {
             const total = Number(progressMatch[2])
             const etaMs = Number(progressMatch[4])
             genCodeProgressRef.current = { done, total, startMs: genCodeProgressRef.current.startMs }
-            const etaSec = etaMs > 0 ? Math.ceil(etaMs / 1000) : null
-            newLabel = t.progressGenCode(done, total, etaSec)
+            const etaRawCode = etaMs > 0 ? Math.ceil(etaMs / 1000) : null
+            newLabel = t.progressGenCode(done, total, etaRawCode !== null ? fmtHms(etaRawCode) : null)
           }
         }
         if (!newLabel) {
-          if (/\[TEST\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
+          if (/\[(?:TEST|ITEST|E2E)\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
             testCountRef.current = { passed: 0, failed: 0 }
             newLabel = t.progressRunning(0, 0)
-          } else if (/\[TEST\] (Auto-fix|自動修正)/.test(chunk)) {
+          } else if (/\[(?:TEST|ITEST|E2E)\] (Auto-fix|自動修正)/.test(chunk)) {
             const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
             newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
           } else {
@@ -881,8 +891,8 @@ export default function TaskDetail() {
             const total = Number(progressMatch[2])
             const etaMs = Number(progressMatch[4])
             genCodeProgressRef.current = { done, total, startMs: genCodeProgressRef.current.startMs }
-            const etaSec = etaMs > 0 ? Math.ceil(etaMs / 1000) : null
-            newLabel = t.progressGenCode(done, total, etaSec)
+            const etaRawCode = etaMs > 0 ? Math.ceil(etaMs / 1000) : null
+            newLabel = t.progressGenCode(done, total, etaRawCode !== null ? fmtHms(etaRawCode) : null)
           }
         }
         if (!newLabel) {
@@ -965,6 +975,7 @@ export default function TaskDetail() {
   async function handleGenerateTestCasesManual() {
     if (!confirmedPrompt || task?.status !== 'idle') return
     setGeneratingTestCases(true)
+    setTcGenLabel(null)
     setChatEntries(prev => {
       streamingEntryIndexRef.current = prev.length
       return [...prev, { type: 'test_cases_generating' }]
@@ -981,9 +992,18 @@ export default function TaskDetail() {
             ? { ...entry, text: entry.text + chunk }
             : entry
         ))
+        for (const line of chunk.split('\n')) {
+          const m = line.match(/^\[XOLVIEN_PROGRESS\] (\d+)\/(\d+) elapsed_ms=(\d+) eta_ms=\d+/)
+          if (m) {
+            const done = Number(m[1]), total = Number(m[2]), elapsedMs = Number(m[3])
+            const etaRaw = done > 0 && total > done ? Math.ceil((elapsedMs / done) * (total - done) / 1000) : null
+            setTcGenLabel(t.progressGenTC(done, total, etaRaw !== null ? fmtHms(etaRaw) : null))
+          }
+        }
       },
       async () => {
         setGeneratingTestCases(false)
+        setTcGenLabel(null)
         try {
           const items = await getTestCaseItems(taskId, 'unit')
           setTestCaseItems(items)
@@ -1002,6 +1022,7 @@ export default function TaskDetail() {
       },
       (err) => {
         setGeneratingTestCases(false)
+        setTcGenLabel(null)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
             ? { type: 'error', message: `${t.testCaseGenError}${err}` }
@@ -1015,6 +1036,7 @@ export default function TaskDetail() {
   async function handleGenerateIntegrationTestCasesManual() {
     if (!confirmedPrompt || task?.status !== 'idle') return
     setGeneratingTestCases(true)
+    setTcGenLabel(null)
     setChatEntries(prev => {
       streamingEntryIndexRef.current = prev.length
       return [...prev, { type: 'integration_test_cases_generating' }]
@@ -1031,9 +1053,18 @@ export default function TaskDetail() {
             ? { ...entry, text: entry.text + chunk }
             : entry
         ))
+        for (const line of chunk.split('\n')) {
+          const m = line.match(/^\[XOLVIEN_PROGRESS\] (\d+)\/(\d+) elapsed_ms=(\d+) eta_ms=\d+/)
+          if (m) {
+            const done = Number(m[1]), total = Number(m[2]), elapsedMs = Number(m[3])
+            const etaRaw = done > 0 && total > done ? Math.ceil((elapsedMs / done) * (total - done) / 1000) : null
+            setTcGenLabel(t.progressGenTC(done, total, etaRaw !== null ? fmtHms(etaRaw) : null))
+          }
+        }
       },
       async () => {
         setGeneratingTestCases(false)
+        setTcGenLabel(null)
         try {
           const items = await getTestCaseItems(taskId, 'integration')
           setIntegrationTestCaseItems(items)
@@ -1052,6 +1083,7 @@ export default function TaskDetail() {
       },
       (err) => {
         setGeneratingTestCases(false)
+        setTcGenLabel(null)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
             ? { type: 'error', message: `${t.integrationTCGenError}${err}` }
@@ -1101,8 +1133,8 @@ export default function TaskDetail() {
             const total = Number(progressMatch[2])
             const etaMs = Number(progressMatch[4])
             genCodeProgressRef.current = { done, total, startMs: genCodeProgressRef.current.startMs }
-            const etaSec = etaMs > 0 ? Math.ceil(etaMs / 1000) : null
-            newLabel = t.progressGenCode(done, total, etaSec)
+            const etaRawCode = etaMs > 0 ? Math.ceil(etaMs / 1000) : null
+            newLabel = t.progressGenCode(done, total, etaRawCode !== null ? fmtHms(etaRawCode) : null)
           }
         }
         if (!newLabel) {
@@ -1185,6 +1217,7 @@ export default function TaskDetail() {
   async function handleGenerateE2ETestCasesManual() {
     if (!confirmedPrompt || task?.status !== 'idle') return
     setGeneratingTestCases(true)
+    setTcGenLabel(null)
     setChatEntries(prev => {
       streamingEntryIndexRef.current = prev.length
       return [...prev, { type: 'e2e_test_cases_generating' }]
@@ -1201,9 +1234,18 @@ export default function TaskDetail() {
             ? { ...entry, text: entry.text + chunk }
             : entry
         ))
+        for (const line of chunk.split('\n')) {
+          const m = line.match(/^\[XOLVIEN_PROGRESS\] (\d+)\/(\d+) elapsed_ms=(\d+) eta_ms=\d+/)
+          if (m) {
+            const done = Number(m[1]), total = Number(m[2]), elapsedMs = Number(m[3])
+            const etaRaw = done > 0 && total > done ? Math.ceil((elapsedMs / done) * (total - done) / 1000) : null
+            setTcGenLabel(t.progressGenTC(done, total, etaRaw !== null ? fmtHms(etaRaw) : null))
+          }
+        }
       },
       async () => {
         setGeneratingTestCases(false)
+        setTcGenLabel(null)
         try {
           const items = await getTestCaseItems(taskId, 'e2e')
           setE2ETestCaseItems(items)
@@ -1222,6 +1264,7 @@ export default function TaskDetail() {
       },
       (err) => {
         setGeneratingTestCases(false)
+        setTcGenLabel(null)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
             ? { type: 'error', message: `${t.e2eTCGenError}${err}` }
@@ -1253,6 +1296,7 @@ export default function TaskDetail() {
   async function handleRevisionRequest(revisionFeedback: string) {
     setInstruction('')
     setGeneratingTestCases(true)
+    setTcGenLabel(null)
     setChatEntries(prev => prev.map(e =>
       e.type === 'test_cases_ready' && !e.approved ? { ...e, approved: true } : e
     ))
@@ -1274,9 +1318,18 @@ export default function TaskDetail() {
             ? { ...entry, text: entry.text + chunk }
             : entry
         ))
+        for (const line of chunk.split('\n')) {
+          const m = line.match(/^\[XOLVIEN_PROGRESS\] (\d+)\/(\d+) elapsed_ms=(\d+) eta_ms=\d+/)
+          if (m) {
+            const done = Number(m[1]), total = Number(m[2]), elapsedMs = Number(m[3])
+            const etaRaw = done > 0 && total > done ? Math.ceil((elapsedMs / done) * (total - done) / 1000) : null
+            setTcGenLabel(t.progressGenTC(done, total, etaRaw !== null ? fmtHms(etaRaw) : null))
+          }
+        }
       },
       async () => {
         setGeneratingTestCases(false)
+        setTcGenLabel(null)
         try {
           const items = await getTestCaseItems(taskId, 'unit')
           setTestCaseItems(items)
@@ -1295,6 +1348,7 @@ export default function TaskDetail() {
       },
       (err) => {
         setGeneratingTestCases(false)
+        setTcGenLabel(null)
         setChatEntries(prev => prev.map((e, i) =>
           i === streamingEntryIndexRef.current
             ? { type: 'error', message: `${t.testCaseRevisionError}${err}` }
@@ -1479,8 +1533,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-
-            {t.generatingTestCasesMsg}
+            {tcGenLabel ?? t.generatingTestCasesMsg}
           </div>
         )
 
@@ -1537,8 +1590,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-
-            {t.generatingIntegrationTC}
+            {tcGenLabel ?? t.generatingIntegrationTC}
           </div>
         )
 
@@ -1595,8 +1647,7 @@ export default function TaskDetail() {
             padding: '10px 12px', fontSize: '0.82rem', color: '#94a3b8',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-
-            {t.generatingE2ETC}
+            {tcGenLabel ?? t.generatingE2ETC}
           </div>
         )
 
@@ -2238,7 +2289,7 @@ export default function TaskDetail() {
                   : generating
                   ? t.bannerGenerating
                   : generatingTestCases
-                  ? t.bannerGeneratingTC
+                  ? (tcGenLabel ?? t.bannerGeneratingTC)
                   : runningTests || task.status === 'testing'
                   ? `${runningTestType === 'unit' ? t.bannerUnitTest : runningTestType === 'integration' ? t.bannerIntegrationTest : runningTestType === 'e2e' ? t.bannerE2ETest : t.bannerTest}: ${testPhaseLabel ?? t.bannerTestGeneratingCode}`
                   : task.status === 'initializing'

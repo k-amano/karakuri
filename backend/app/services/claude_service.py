@@ -61,6 +61,7 @@ if uid is not None:
                     pass
 
     def drop_privs():
+        os.setgroups([gid])
         os.setgid(gid)
         os.setuid(uid)
 
@@ -84,6 +85,82 @@ for chunk in iter(lambda: proc.stdout.read(512), b''):
     sys.stdout.buffer.write(chunk)
     sys.stdout.buffer.flush()
 proc.wait()
+sys.exit(proc.returncode)
+"""
+
+# Python script for batch test case generation using --output-format json + --resume
+# Reads prompt from /tmp/xolvien_prompt.txt, optional session from /tmp/xolvien_session.txt
+# Writes session_id to /tmp/xolvien_session.txt after first call
+# Prints result text to stdout
+_RUNNER_SCRIPT_TC_BATCH = """\
+import subprocess, sys, os, shutil, pwd, json
+
+prompt = open('/tmp/xolvien_prompt.txt', encoding='utf-8').read()
+session_file = '/tmp/xolvien_session.txt'
+
+try:
+    pw = pwd.getpwnam('xolvien')
+    uid, gid, home = pw.pw_uid, pw.pw_gid, pw.pw_dir
+except KeyError:
+    uid = gid = None
+    home = '/root'
+
+if uid is not None:
+    src, dst = '/root/.ssh', f'{home}/.ssh'
+    if os.path.exists(src) and not os.path.exists(dst):
+        shutil.copytree(src, dst, symlinks=True)
+        for dirpath, dirs, files in os.walk(dst):
+            os.chown(dirpath, uid, gid)
+            for f in files:
+                try:
+                    os.chown(os.path.join(dirpath, f), uid, gid)
+                except Exception:
+                    pass
+
+    def drop_privs():
+        os.setgroups([gid])
+        os.setgid(gid)
+        os.setuid(uid)
+
+    env = {**os.environ, 'HOME': home}
+    preexec = drop_privs
+else:
+    env = {**os.environ, 'HOME': '/root'}
+    preexec = None
+
+cmd = ['claude', '--dangerously-skip-permissions', '-p', prompt, '--output-format', 'json']
+
+session_id = None
+if os.path.exists(session_file):
+    session_id = open(session_file).read().strip()
+    if session_id:
+        cmd += ['--resume', session_id]
+
+proc = subprocess.run(cmd, capture_output=True, env=env, cwd='/workspace/repo', preexec_fn=preexec)
+raw = proc.stdout.decode('utf-8', errors='replace')
+
+# Parse session_id and result from JSON output
+# Output is one or more JSON objects concatenated
+result_text = ''
+for segment in raw.replace('}{', '}\\n{').split('\\n'):
+    segment = segment.strip()
+    if not segment.startswith('{'):
+        continue
+    try:
+        obj = json.loads(segment)
+        if obj.get('type') == 'system' and 'session_id' in obj:
+            session_id = obj['session_id']
+        elif obj.get('type') == 'result':
+            result_text = obj.get('result', '')
+    except Exception:
+        pass
+
+# Save session_id for next batch
+if session_id:
+    open(session_file, 'w').write(session_id)
+
+sys.stdout.write(result_text)
+sys.stdout.flush()
 sys.exit(proc.returncode)
 """
 
@@ -551,286 +628,217 @@ README:
 
         _, file_list, _ = self.docker_service.execute_command(
             task.container_id,
-            "find /workspace/repo -type f | grep -v '.git' | grep -v '__pycache__' | grep -v 'node_modules' 2>/dev/null || echo '(空)'",
+            "find /workspace/repo -type f | grep -v '.git' | grep -v '__pycache__' | grep -v 'node_modules' | sed 's|/workspace/repo/||' 2>/dev/null || echo '(none)'",
             "/workspace",
         )
 
+        # Strip absolute container paths so Claude doesn't attempt file reads
+        implementation_prompt = implementation_prompt.replace("/workspace/repo/", "")
+
+        BATCH_SIZE = 10
+
         if is_e2e:
+            fn_prefix = "test_e2e"
             if lang == "en":
-                prompt = f"""You are an E2E test design expert. Based on the implementation prompt and file list below, generate a list of Playwright E2E test cases.
-
-## What E2E tests are (important)
-
-**E2E tests are user scenario tests through a browser.** Follow these rules:
-
-- Unit test: individual function/component behavior
-- Integration test: HTTP API request/response and multi-component interaction
-- **E2E test: launch a browser and interact with the actual UI**
-  - Open a page → interact with UI elements (click, type) → verify visible results
-  - Full user registration/login/logout flows
-  - Form submission → page transition → success/error message verification
-  - List view → detail page → edit/delete CRUD flows
-
-## Implementation content
-{implementation_prompt}
-
-## Project file list
-{file_list.strip()}
-
-## Output format (output ONLY this JSON — nothing else)
-
-```json
-[
-  {{
-    "seq_no": 1,
-    "target_screen": "Target screen or scenario name (e.g. Login page, Product list → detail transition)",
-    "test_item": "Test item name",
-    "operation": "Specific browser steps (e.g. Open http://localhost:3000/login, type \\"test@example.com\\" in email, type \\"password123\\" in password, click Login button)",
-    "expected_output": "Expected UI result (e.g. Redirected to dashboard, \\"Welcome test@example.com\\" is displayed)",
-    "function_name": "test_e2e001_short_description (alphanumeric and underscores only)"
-  }}
-]
-```
-
-## Rules
-- **Design browser UI-level tests only** (direct API calls are not E2E tests)
-- **Include specific URLs, input values, click targets, and expected text**
-- Aim for **8–12 test cases** covering key user scenarios
-- function_name must start with `test_e2e{{seq_no:03d}}_`, alphanumeric and underscores only
-- Output JSON only — no explanatory text, no Markdown headings
-- Do not generate test code (test case definitions only)
-"""
+                context = (
+                    "You are an E2E test design expert.\n"
+                    "E2E tests are browser UI scenario tests (open page, interact with UI elements, verify visible results).\n"
+                    "Do NOT design direct API call tests — those are integration tests.\n\n"
+                    f"## Implementation content\n{implementation_prompt}\n\n"
+                    f"## Project file list\n{file_list.strip()}"
+                )
+                first_batch_prefix = (
+                    "First, decide how many E2E test cases are needed to fully cover this implementation.\n"
+                    "Output this line first: [XOLVIEN_TC_TOTAL] <total>\n\n"
+                    "Then generate the first {n} test cases (seq_no {start} to {end}).\n"
+                )
+                next_batch_prefix = "Generate the next {n} E2E test cases (seq_no {start} to {end}).\n"
+                batch_body = (
+                    "For each test case output exactly:\n"
+                    "[XOLVIEN_TC_DONE] <seq_no>\n"
+                    '{{"seq_no": <seq_no>, "target_screen": "...", "test_item": "...", "operation": "browser steps with specific URL/click/input", "expected_output": "visible UI result", "function_name": "test_e2e{start:03d}_..."}}\n\n'
+                    "Rules: No explanatory text. No markdown. One JSON object per test case immediately after its marker."
+                )
             else:
-                prompt = f"""あなたはE2Eテスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、Playwright E2Eテストケース一覧を生成してください。
-
-## E2Eテストとは何か（重要）
-
-**E2Eテストはブラウザを通じたユーザーシナリオのテストです。** 以下の特徴を守ってください：
-
-- 単体テスト: 個別の関数・コンポーネント単体の動作
-- 結合テスト: HTTP APIレベルのリクエスト/レスポンスと複数コンポーネントの連携
-- **E2Eテスト: ブラウザを起動し、実際のUIを操作するシナリオテスト**
-  - ページを開く → UI要素を操作（クリック、入力）→ 画面に表示される結果を確認
-  - ユーザー登録・ログイン・ログアウトのフロー全体
-  - フォーム送信 → 画面遷移 → 成功/エラーメッセージの確認
-  - 一覧表示 → 詳細ページ遷移 → 編集・削除などのCRUDフロー
-
-## 実装予定の内容
-{implementation_prompt}
-
-## プロジェクトのファイル一覧
-{file_list.strip()}
-
-## 出力形式（必ずこの形式のみを出力すること）
-
-```json
-[
-  {{
-    "seq_no": 1,
-    "target_screen": "対象画面またはシナリオ名（例: ログインページ、商品一覧→詳細遷移）",
-    "test_item": "テスト項目の名称",
-    "operation": "ブラウザでの具体的な操作手順（例: http://localhost:3000/login を開き、メールに \\"test@example.com\\" を入力し、パスワードに \\"password123\\" を入力してログインボタンをクリックする）",
-    "expected_output": "期待されるUI上の結果（例: ダッシュボードページに遷移し、\\"ようこそ test@example.com\\" と表示される）",
-    "function_name": "test_e2e001_短い説明（英数字とアンダースコアのみ）"
-  }}
-]
-```
-
-## 注意事項
-- **必ずブラウザUI操作レベルのテストを設計すること**（APIの直接呼び出しはE2Eテストではない）
-- **具体的なURL、入力値、クリック対象、表示内容を記述すること**
-- 主要なユーザーシナリオを中心に **8〜12件程度**
-- function_name は `test_e2e{{seq_no:03d}}_` で始まる英数字・アンダースコアのみの関数名にすること
-- JSON以外のテキスト（説明文・Markdownの見出し等）は出力しないこと
-- テストコードは生成しないこと（テストケース定義のみ）
-"""
+                context = (
+                    "あなたはE2Eテスト設計の専門家です。\n"
+                    "E2Eテストはブラウザを使ったUIシナリオテストです（ページを開く、UI操作、表示結果確認）。\n"
+                    "APIの直接呼び出しはE2Eテストではありません。\n\n"
+                    f"## 実装予定の内容\n{implementation_prompt}\n\n"
+                    f"## プロジェクトのファイル一覧\n{file_list.strip()}"
+                )
+                first_batch_prefix = (
+                    "まず、この実装を完全にカバーするために必要なE2Eテストケースの総数を決めてください。\n"
+                    "最初にこの行を出力してください: [XOLVIEN_TC_TOTAL] <total>\n\n"
+                    "次に最初の {n} 件（seq_no {start}〜{end}）を生成してください。\n"
+                )
+                next_batch_prefix = "次の {n} 件のE2Eテストケース（seq_no {start}〜{end}）を生成してください。\n"
+                batch_body = (
+                    "各テストケースをこの形式で出力してください：\n"
+                    "[XOLVIEN_TC_DONE] <seq_no>\n"
+                    '{{"seq_no": <seq_no>, "target_screen": "...", "test_item": "...", "operation": "具体的なURL・クリック・入力を含むブラウザ操作手順", "expected_output": "UI上の表示結果", "function_name": "test_e2e{start:03d}_..."}}\n\n'
+                    "注意：説明文不要。マークダウン不要。マーカーの直後にJSONを1件ずつ出力してください。"
+                )
         elif is_integration:
+            fn_prefix = "test_itc"
             if lang == "en":
-                prompt = f"""You are an integration test design expert. Based on the implementation prompt and file list below, generate a list of integration test cases.
-
-## What integration tests are (important)
-
-**Integration tests are NOT unit tests.** Follow these distinctions:
-
-- Unit test: individual function/component behavior (e.g. form validation, localStorage writes)
-- **Integration test: multiple components/layers working together**
-  - Frontend → API server → DB end-to-end flow
-  - HTTP request → response → DB state change
-  - Authentication flow (login → token → authenticated API call)
-  - Multi-API business flows (create → update → delete → list)
-
-## Implementation content
-{implementation_prompt}
-
-## Project file list
-{file_list.strip()}
-
-## Output format (output ONLY this JSON — nothing else)
-
-```json
-[
-  {{
-    "seq_no": 1,
-    "target_screen": "Target API endpoint or flow name (e.g. POST /api/users, Login flow)",
-    "test_item": "Test item name",
-    "operation": "Specific HTTP request details (e.g. Send POST /api/users with Authorization: Bearer token, Body: {{\\"name\\": \\"Alice\\", \\"email\\": \\"alice@example.com\\"}})",
-    "expected_output": "Expected HTTP response and DB state (e.g. Status 201, Body: {{\\"id\\": 1, \\"name\\": \\"Alice\\"}}, one record added to users table)",
-    "function_name": "test_itc001_short_description (alphanumeric and underscores only)"
-  }}
-]
-```
-
-## Rules
-- **Design HTTP request/response-level tests only** (DOM or localStorage tests are not integration tests)
-- **Include actual API endpoint URLs, HTTP methods, request bodies, and response status codes**
-- Aim for **10–15 test cases** covering happy path, error cases, and multi-step flows
-- function_name must start with `test_itc{{seq_no:03d}}_`, alphanumeric and underscores only
-- Output JSON only — no explanatory text, no Markdown headings
-- Do not generate test code (test case definitions only)
-"""
+                context = (
+                    "You are an integration test design expert.\n"
+                    "Integration tests cover HTTP request/response flows across multiple components (Frontend → API → DB).\n"
+                    "Do NOT design unit tests (single function behavior).\n\n"
+                    f"## Implementation content\n{implementation_prompt}\n\n"
+                    f"## Project file list\n{file_list.strip()}"
+                )
+                first_batch_prefix = (
+                    "First, decide how many integration test cases are needed to fully cover this implementation.\n"
+                    "Output this line first: [XOLVIEN_TC_TOTAL] <total>\n\n"
+                    "Then generate the first {n} test cases (seq_no {start} to {end}).\n"
+                )
+                next_batch_prefix = "Generate the next {n} integration test cases (seq_no {start} to {end}).\n"
+                batch_body = (
+                    "For each test case output exactly:\n"
+                    "[XOLVIEN_TC_DONE] <seq_no>\n"
+                    '{{"seq_no": <seq_no>, "target_screen": "API endpoint or flow name", "test_item": "...", "operation": "HTTP method, URL, request body", "expected_output": "HTTP status and response body", "function_name": "test_itc{start:03d}_..."}}\n\n'
+                    "Rules: No explanatory text. No markdown. One JSON object per test case immediately after its marker."
+                )
             else:
-                prompt = f"""あなたは結合テスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、結合テストケース一覧を生成してください。
-
-## 結合テストとは何か（重要）
-
-**結合テストは単体テストではありません。** 以下の違いを必ず守ってください：
-
-- 単体テスト: 個別の関数・コンポーネントの動作（例: フォームのバリデーション、localStorageへの書き込み）
-- **結合テスト: 複数コンポーネント・レイヤーが連携して動作すること**
-  - フロントエンド → APIサーバー → DB の一連のフロー
-  - HTTP リクエスト → レスポンス → DB の状態変化
-  - 認証フロー（ログイン → トークン取得 → 認証が必要なAPIの呼び出し）
-  - 複数APIを組み合わせた業務フロー（作成 → 更新 → 削除 → 一覧取得）
-
-## 実装予定の内容
-{implementation_prompt}
-
-## プロジェクトのファイル一覧
-{file_list.strip()}
-
-## 出力形式（必ずこの形式のみを出力すること）
-
-```json
-[
-  {{
-    "seq_no": 1,
-    "target_screen": "対象APIエンドポイントまたはフロー名（例: POST /api/users、ログインフロー）",
-    "test_item": "テスト項目の名称",
-    "operation": "具体的なHTTPリクエストの内容（例: POST /api/users に Authorization: Bearer token、Body: {{\\"name\\": \\"Alice\\", \\"email\\": \\"alice@example.com\\"}} を送信する）",
-    "expected_output": "期待されるHTTPレスポンスとDB状態（例: ステータス201、レスポンスBody: {{\\"id\\": 1, \\"name\\": \\"Alice\\"}}、DBのusersテーブルにレコードが1件追加されている）",
-    "function_name": "test_itc001_短い説明（英数字とアンダースコアのみ）"
-  }}
-]
-```
-
-## 注意事項
-- **必ずHTTPリクエスト/レスポンスレベルのテストを設計すること**（DOMやlocalStorageのテストは結合テストではない）
-- **実際のAPIエンドポイントのURL、HTTPメソッド、リクエストボディ、レスポンスステータスを具体的に記述すること**
-- 正常系・異常系・業務フロー連携を中心に **10〜15件程度**（多すぎない）
-- function_name は `test_itc{{seq_no:03d}}_` で始まる英数字・アンダースコアのみの関数名にすること
-- JSON以外のテキスト（説明文・Markdownの見出し等）は出力しないこと
-- テストコードは生成しないこと（テストケース定義のみ）
-"""
+                context = (
+                    "あなたは結合テスト設計の専門家です。\n"
+                    "結合テストはHTTPリクエスト/レスポンスを通じた複数コンポーネント連携のテストです（フロントエンド→API→DB）。\n"
+                    "単体テスト（関数単体の動作）は設計しないでください。\n\n"
+                    f"## 実装予定の内容\n{implementation_prompt}\n\n"
+                    f"## プロジェクトのファイル一覧\n{file_list.strip()}"
+                )
+                first_batch_prefix = (
+                    "まず、この実装を完全にカバーするために必要な結合テストケースの総数を決めてください。\n"
+                    "最初にこの行を出力してください: [XOLVIEN_TC_TOTAL] <total>\n\n"
+                    "次に最初の {n} 件（seq_no {start}〜{end}）を生成してください。\n"
+                )
+                next_batch_prefix = "次の {n} 件の結合テストケース（seq_no {start}〜{end}）を生成してください。\n"
+                batch_body = (
+                    "各テストケースをこの形式で出力してください：\n"
+                    "[XOLVIEN_TC_DONE] <seq_no>\n"
+                    '{{"seq_no": <seq_no>, "target_screen": "APIエンドポイントまたはフロー名", "test_item": "...", "operation": "HTTPメソッド・URL・リクエストボディ", "expected_output": "HTTPステータスとレスポンスボディ", "function_name": "test_itc{start:03d}_..."}}\n\n'
+                    "注意：説明文不要。マークダウン不要。マーカーの直後にJSONを1件ずつ出力してください。"
+                )
         else:
+            fn_prefix = "test_tc"
             if lang == "en":
-                prompt = f"""You are a unit test design expert. Based on the implementation prompt and file list below, generate a list of unit test cases.
-
-## Implementation content
-{implementation_prompt}
-
-## Project file list
-{file_list.strip()}
-
-## Output format (output ONLY this JSON — nothing else)
-
-```json
-[
-  {{
-    "seq_no": 1,
-    "target_screen": "Target screen name (or module name if no UI)",
-    "test_item": "Test item name",
-    "operation": "Specific steps with input values (e.g. Type \\"sk-test-12345\\" in the input field and click Submit)",
-    "expected_output": "Expected specific output (e.g. localStorage[\\"apiKey\\"] equals \\"sk-test-12345\\")",
-    "function_name": "test_tc001_short_description (alphanumeric and underscores only)"
-  }}
-]
-```
-
-## Rules
-- Cover happy path, error cases, and boundary values; include specific input and expected output for each case
-- function_name must start with `test_tc{{seq_no:03d}}_`, alphanumeric and underscores only
-- Output JSON only — no explanatory text, no Markdown headings
-- Do not generate test code (test case definitions only)
-"""
+                context = (
+                    "You are a unit test design expert.\n\n"
+                    f"## Implementation content\n{implementation_prompt}\n\n"
+                    f"## Project file list\n{file_list.strip()}"
+                )
+                first_batch_prefix = (
+                    "First, decide how many unit test cases are needed to fully cover this implementation (happy path, error cases, boundary values).\n"
+                    "Output this line first: [XOLVIEN_TC_TOTAL] <total>\n\n"
+                    "Then generate the first {n} test cases (seq_no {start} to {end}).\n"
+                )
+                next_batch_prefix = "Generate the next {n} unit test cases (seq_no {start} to {end}).\n"
+                batch_body = (
+                    "For each test case output exactly:\n"
+                    "[XOLVIEN_TC_DONE] <seq_no>\n"
+                    '{{"seq_no": <seq_no>, "target_screen": "...", "test_item": "...", "operation": "specific steps with input values", "expected_output": "specific expected output", "function_name": "test_tc{start:03d}_..."}}\n\n'
+                    "Rules: Cover happy path, error cases, and boundary values. No explanatory text. No markdown. One JSON object per test case immediately after its marker."
+                )
             else:
-                prompt = f"""あなたはテスト設計の専門家です。以下の実装プロンプトとプロジェクトのファイル一覧を参考にして、単体テストのテストケース一覧を生成してください。
+                context = (
+                    "あなたはテスト設計の専門家です。\n\n"
+                    f"## 実装予定の内容\n{implementation_prompt}\n\n"
+                    f"## プロジェクトのファイル一覧\n{file_list.strip()}"
+                )
+                first_batch_prefix = (
+                    "まず、この実装を完全にカバーするために必要な単体テストケースの総数を決めてください（正常系・異常系・境界値）。\n"
+                    "最初にこの行を出力してください: [XOLVIEN_TC_TOTAL] <total>\n\n"
+                    "次に最初の {n} 件（seq_no {start}〜{end}）を生成してください。\n"
+                )
+                next_batch_prefix = "次の {n} 件の単体テストケース（seq_no {start}〜{end}）を生成してください。\n"
+                batch_body = (
+                    "各テストケースをこの形式で出力してください：\n"
+                    "[XOLVIEN_TC_DONE] <seq_no>\n"
+                    '{{"seq_no": <seq_no>, "target_screen": "...", "test_item": "...", "operation": "具体的な入力値を含む操作手順", "expected_output": "期待される具体的な出力値", "function_name": "test_tc{start:03d}_..."}}\n\n'
+                    "注意：正常系・異常系・境界値を網羅すること。説明文不要。マークダウン不要。マーカーの直後にJSONを1件ずつ出力してください。"
+                )
 
-## 実装予定の内容
-{implementation_prompt}
+        # Delete previous test_case_items of this test_type before starting
+        existing = await db.execute(
+            sa_select(TestCaseItem).where(
+                TestCaseItem.task_id == task_id,
+                TestCaseItem.test_type == test_type,
+            )
+        )
+        for item in existing.scalars().all():
+            await db.delete(item)
+        await db.commit()
 
-## プロジェクトのファイル一覧
-{file_list.strip()}
+        # Clear session file so each generation starts fresh
+        self.docker_service.execute_command(
+            task.container_id, "rm -f /tmp/xolvien_session.txt", "/workspace"
+        )
+        self._write_text_to_container(
+            task.container_id, "/tmp/xolvien_runner_tc.py", _RUNNER_SCRIPT_TC_BATCH
+        )
 
-## 出力形式（必ずこの形式のみを出力すること）
+        gen_start = datetime.utcnow()
+        tc_done_count = 0
+        total_tc = 0  # set after first batch parses [XOLVIEN_TC_TOTAL]
+        batch_num = 0
 
-```json
-[
-  {{
-    "seq_no": 1,
-    "target_screen": "対象画面名（画面がない場合はモジュール名）",
-    "test_item": "テスト項目の名称",
-    "operation": "具体的な入力値を含む操作手順（例: 入力欄に \\"sk-test-12345\\" を入力して送信ボタンを押す）",
-    "expected_output": "期待される具体的な出力値（例: localStorage[\\"apiKey\\"] が \\"sk-test-12345\\" になっている）",
-    "function_name": "test_tc001_短い説明（英数字とアンダースコアのみ）"
-  }}
-]
-```
+        while True:
+            batch_num += 1
+            start_seq = (batch_num - 1) * BATCH_SIZE + 1
+            end_seq = batch_num * BATCH_SIZE
+            if batch_num == 1:
+                prefix = first_batch_prefix.format(n=BATCH_SIZE, start=start_seq, end=end_seq)
+                prompt = context + "\n\n" + prefix + batch_body.format(start=start_seq)
+            else:
+                prefix = next_batch_prefix.format(n=BATCH_SIZE, start=start_seq, end=end_seq)
+                prompt = prefix + batch_body.format(start=start_seq)
 
-## 注意事項
-- 正常系・異常系・境界値を網羅し、各テストケースに具体的な入力値と期待出力値を必ず記述すること
-- function_name は `test_tc{{seq_no:03d}}_` で始まる英数字・アンダースコアのみの関数名にすること
-- JSON以外のテキスト（説明文・Markdownの見出し等）は出力しないこと
-- テストコードは生成しないこと（テストケース定義のみ）
-"""
+            self._write_text_to_container(
+                task.container_id, "/tmp/xolvien_prompt.txt", prompt
+            )
 
-        self._write_text_to_container(task.container_id, "/tmp/xolvien_prompt.txt", prompt)
-        self._write_text_to_container(task.container_id, "/tmp/xolvien_runner.py", _RUNNER_SCRIPT_AGENT)
+            if lang == "en":
+                yield f"{tag} Generating test cases {start_seq}–{end_seq}...\n"
+            else:
+                yield f"{tag} テストケース {start_seq}〜{end_seq} を生成しています...\n"
 
-        raw_output = ""
-        async for chunk in self.docker_service.execute_command_stream(
-            task.container_id,
-            "python3 /tmp/xolvien_runner.py",
-            "/workspace/repo",
-        ):
-            yield chunk
-            raw_output += chunk
-
-        # Parse JSON and save to test_case_items
-        if lang == "en":
-            yield f"\n{tag} Saving test cases to DB...\n"
-        else:
-            yield f"\n{tag} テストケースをDBに保存しています...\n"
-        try:
-            items = self._parse_test_cases_json(raw_output)
-            if not items:
-                if lang == "en":
-                    yield f"{tag} ⚠️ Failed to parse test case JSON. Please check the output.\n"
-                else:
-                    yield f"{tag} ⚠️ テストケースのJSON解析に失敗しました。出力を確認してください。\n"
-                return
-
-            # Delete previous test_case_items of this test_type only (keep other types)
-            existing = await db.execute(
-                sa_select(TestCaseItem).where(
-                    TestCaseItem.task_id == task_id,
-                    TestCaseItem.test_type == test_type,
+            _, batch_output, _ = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self.docker_service.execute_command(
+                    task.container_id,
+                    "python3 /tmp/xolvien_runner_tc.py",
+                    "/workspace/repo",
                 )
             )
-            for item in existing.scalars().all():
-                await db.delete(item)
-            await db.commit()
 
-            for item_data in items:
+            # Extract [XOLVIEN_TC_TOTAL] from first batch output
+            if batch_num == 1:
+                for line in batch_output.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("[XOLVIEN_TC_TOTAL]"):
+                        try:
+                            total_tc = int(stripped.split()[1])
+                        except (IndexError, ValueError):
+                            pass
+
+            # Parse test cases from this batch
+            batch_items = self._parse_test_cases_json(batch_output)
+            if not batch_items:
+                if lang == "en":
+                    yield f"{tag} ⛔ Aborted: no test cases returned in batch {batch_num}.\n"
+                else:
+                    yield f"{tag} ⛔ 中断: バッチ {batch_num} でテストケースが返されませんでした。\n"
+                break
+
+            # Trim batch to not exceed total_tc
+            if total_tc > 0 and tc_done_count + len(batch_items) > total_tc:
+                batch_items = batch_items[:total_tc - tc_done_count]
+
+            # Save batch to DB
+            for item_data in batch_items:
+                tc_done_count += 1
                 tc = TestCaseItem(
                     task_id=task_id,
                     test_type=test_type,
@@ -843,27 +851,42 @@ README:
                 )
                 db.add(tc)
             await db.commit()
+
+            elapsed_ms = int((datetime.utcnow() - gen_start).total_seconds() * 1000)
+            yield f"[XOLVIEN_PROGRESS] {tc_done_count}/{total_tc} elapsed_ms={elapsed_ms} eta_ms=0\n"
             if lang == "en":
-                yield f"{tag} ✅ Saved {len(items)} test cases\n"
+                yield f"{tag} ✅ {tc_done_count}/{total_tc if total_tc else '?'} test cases saved\n"
             else:
-                yield f"{tag} ✅ {len(items)} 件のテストケースを保存しました\n"
-        except Exception as e:
+                yield f"{tag} ✅ {tc_done_count}/{total_tc if total_tc else '?'} 件保存済み\n"
+
+            # Stop when total reached, or Claude returned fewer than BATCH_SIZE
+            if total_tc > 0 and tc_done_count >= total_tc:
+                break
+            if len(batch_items) < BATCH_SIZE:
+                break
+
+        if tc_done_count == 0:
             if lang == "en":
-                yield f"{tag} ⚠️ Failed to save test cases: {e}\n"
+                yield f"\n{tag} ⛔ No test cases were generated.\n"
             else:
-                yield f"{tag} ⚠️ テストケース保存エラー: {e}\n"
+                yield f"\n{tag} ⛔ テストケースが生成されませんでした。\n"
+        else:
+            if lang == "en":
+                yield f"\n{tag} ✅ Done. Total: {tc_done_count} test cases\n"
+            else:
+                yield f"\n{tag} ✅ 完了。合計 {tc_done_count} 件のテストケースを生成しました\n"
 
     def _parse_test_cases_json(self, raw: str) -> list[dict]:
-        """Extract and parse the JSON array from Claude's output."""
-        # Find the first '[' and last ']' to extract the JSON array
-        start = raw.find('[')
-        end = raw.rfind(']')
-        if start == -1 or end == -1 or end <= start:
-            return []
-        try:
-            return json.loads(raw[start:end + 1])
-        except json.JSONDecodeError:
-            return []
+        """Parse test cases from one-per-line JSON objects."""
+        items = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if line.startswith('{') and line.endswith('}'):
+                try:
+                    items.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+        return items
 
     def _detect_e2e_test_command(self, container_id: str) -> str | None:
         """Detect Playwright config and return the appropriate E2E test command."""
@@ -1079,9 +1102,12 @@ Example for TC-001:
 
         _, file_list, _ = self.docker_service.execute_command(
             task.container_id,
-            "find /workspace/repo -type f | grep -v '.git' | grep -v '__pycache__' | grep -v 'node_modules' 2>/dev/null",
+            "find /workspace/repo -type f | grep -v '.git' | grep -v '__pycache__' | grep -v 'node_modules' | sed 's|/workspace/repo/||' 2>/dev/null",
             "/workspace",
         )
+
+        # Strip absolute container paths so Claude doesn't attempt file reads
+        implementation_prompt = implementation_prompt.replace("/workspace/repo/", "")
 
         if is_e2e:
             tc_id_example = "E2E-001"
@@ -1388,48 +1414,46 @@ Notes:
         self._write_text_to_container(task.container_id, "/tmp/xolvien_prompt.txt", gen_prompt)
         self._write_text_to_container(task.container_id, "/tmp/xolvien_runner.py", _RUNNER_SCRIPT_AGENT)
 
-        # Stream test code generation with marker detection and timeout
-        TIMEOUT_SECONDS = 300  # 5 min without any marker = abort
         gen_start = datetime.utcnow()
-        last_marker_time = datetime.utcnow()
         tc_done_count = 0
-        timed_out = False
 
         async for chunk in self.docker_service.execute_command_stream(
             task.container_id,
             "python3 /tmp/xolvien_runner.py",
             "/workspace/repo",
+            chunk_timeout=90.0,
         ):
-            yield chunk
             now = datetime.utcnow()
-            for line in chunk.splitlines():
-                line = line.strip()
-                if line.startswith("[XOLVIEN_TC_START]"):
-                    last_marker_time = now
-                elif line.startswith("[XOLVIEN_TC_DONE]"):
-                    last_marker_time = now
+            clean_lines = []
+            for line in chunk.splitlines(keepends=True):
+                stripped = line.strip()
+                if stripped.startswith("[XOLVIEN_TC_START]"):
+                    pass  # consumed, not forwarded to log
+                elif stripped.startswith("[XOLVIEN_TC_DONE]"):
                     tc_done_count += 1
                     elapsed_ms = int((now - gen_start).total_seconds() * 1000)
                     remaining = total_tc - tc_done_count
                     avg_ms = elapsed_ms // tc_done_count if tc_done_count else 0
                     eta_ms = avg_ms * remaining
                     yield f"[XOLVIEN_PROGRESS] {tc_done_count}/{total_tc} elapsed_ms={elapsed_ms} eta_ms={eta_ms}\n"
-            # Timeout check: no marker for TIMEOUT_SECONDS
-            if (now - last_marker_time).total_seconds() > TIMEOUT_SECONDS:
-                timed_out = True
-                if lang == "en":
-                    yield f"\n{tag} ⛔ Timeout: no progress for {TIMEOUT_SECONDS}s. Aborting test code generation.\n"
                 else:
-                    yield f"\n{tag} ⛔ タイムアウト: {TIMEOUT_SECONDS}秒間進捗なし。テストコード生成を中断します。\n"
-                test_run.passed = False
-                test_run.completed_at = datetime.utcnow()
-                test_run.summary = "Timeout during test code generation" if lang == "en" else "テストコード生成タイムアウト"
-                await db.commit()
-                task.status = TaskStatus.IDLE
-                await db.commit()
-                return
+                    clean_lines.append(line)
+            clean_chunk = "".join(clean_lines)
+            if clean_chunk:
+                yield clean_chunk
 
-        if timed_out:
+        # Marker is mandatory — abort if Claude never output one
+        if tc_done_count == 0:
+            if lang == "en":
+                yield f"\n{tag} ⛔ Aborted: no [XOLVIEN_TC_DONE] marker received. Claude did not follow the required output format.\n"
+            else:
+                yield f"\n{tag} ⛔ 中断: [XOLVIEN_TC_DONE]マーカーが1件も受信できませんでした。Claudeが出力フォーマットに従っていません。\n"
+            test_run.passed = False
+            test_run.completed_at = datetime.utcnow()
+            test_run.summary = "Aborted: no progress markers" if lang == "en" else "中断: 進捗マーカーなし"
+            await db.commit()
+            task.status = TaskStatus.IDLE
+            await db.commit()
             return
 
         if is_e2e:

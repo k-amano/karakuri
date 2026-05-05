@@ -1,6 +1,6 @@
 # Xolvien — Current Specification
 
-**Last updated**: 2026-04-30 (E2E test implementation)
+**Last updated**: 2026-05-05 (real-time test case generation progress)
 
 This document records the specification as currently implemented. Unimplemented future features are described in `roadmap.md`.
 
@@ -291,14 +291,23 @@ Always visible at the top of the control panel. Steps: Implement → Unit Test �
 | Yellow background, black text | Selected (navigated to by click) |
 | Grey | Not yet started |
 
-### 5.4 Test Case Review Card Operations
+### 5.4 Real-time Progress Display
+
+During test case generation (unit / integration / E2E), the right pane chat entry (`test_cases_generating` etc.) updates live as each batch completes:
+
+- Shows `Generating test cases: done / total  (~mm:ss remaining)` (EN) or `テストケース生成中: done / total 件  (残り約mm:ss)` (JA).
+- Remaining time is computed from elapsed time per batch × remaining batches and formatted as `mm:ss` (or `hh:mm:ss` if ≥ 1 hour).
+- The same format is used for test code generation progress (`progressGenCode`) during test execution.
+- Progress display also appears in the left-pane status banner.
+
+### 5.5 Test Case Review Card Operations
 
 - Review TC-ID, target screen, test item, operation, and expected output in the chat history card.
 - Click "Approve & run tests" in the button area below the input to start testing.
 - Click "Request revision" to expand an inline input field. Enter revision details and click "Send" to regenerate test cases.
 - After test completion, both "Re-run tests" and "Regenerate test cases" are available.
 
-### 5.5 Test Result Display
+### 5.6 Test Result Display
 
 - Test result summary shows TC-count-based numbers (e.g. "45 passed, 5 failed").
 - Test result table: TC-ID / test item / expected output / actual output / verdict / executed_at.
@@ -334,7 +343,7 @@ backend/app/
 | `execute_instruction()` | Executes an arbitrary instruction via Claude Agent. Yields log lines as an AsyncGenerator. |
 | `clarify_requirements()` | Requirement clarification Q&A. Asks questions until enough information is gathered. |
 | `generate_prompt()` | Converts a brief instruction into an optimized prompt. |
-| `generate_test_cases()` | Generates unit (`TC-NNN` / `test_tc001_`), integration (`ITC-NNN` / `test_itc001_`), or E2E (`E2E-NNN` / `test_e2e001_`) test cases based on the `test_type` argument. Deletes only existing TCs of the same `test_type` before saving. |
+| `generate_test_cases()` | Generates unit (`TC-NNN` / `test_tc001_`), integration (`ITC-NNN` / `test_itc001_`), or E2E (`E2E-NNN` / `test_e2e001_`) test cases based on the `test_type` argument. Deletes only existing TCs of the same `test_type` before saving. Uses batch generation via `--output-format json` + `--resume <session_id>` (10 cases per Claude call) to support large test suites. Yields `[XOLVIEN_PROGRESS] done/total elapsed_ms=N eta_ms=0` after each batch for real-time progress display. |
 | `run_unit_tests()` | Wrapper passing `TestType.UNIT` to `_run_tests()`. |
 | `run_integration_tests()` | Wrapper passing `TestType.INTEGRATION` to `_run_tests()`. |
 | `run_e2e_tests()` | Wrapper passing `TestType.E2E` to `_run_tests()`. |

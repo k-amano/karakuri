@@ -2,6 +2,33 @@
 
 ---
 
+## 2026-05-05
+
+### Real-time Test Case Generation Progress
+
+**Changes:**
+
+- Backend `claude_service.py`: Rewrote `generate_test_cases()` to use batch generation.
+  - Calls Claude CLI with `--output-format json` and `--resume <session_id>` to maintain context across batches.
+  - Generates 10 cases per Claude call (BATCH_SIZE = 10). The first batch instructs Claude to decide the total count and output `[XOLVIEN_TC_TOTAL] <n>`.
+  - Yields `[XOLVIEN_PROGRESS] done/total elapsed_ms=N eta_ms=0` after each batch, enabling frontend progress display.
+  - Loop terminates when `done >= total` or the batch returns fewer than BATCH_SIZE items.
+  - Applies to UNIT, INTEGRATION, and E2E test types via the shared `test_type` argument.
+
+- Backend `docker_service.py`: Added `chunk_timeout` parameter to `execute_command_stream()`. Set to 90 seconds for test case generation and test execution calls to accommodate Claude's response time.
+
+- Frontend `src/pages/TaskDetail.tsx`:
+  - `test_cases_generating`, `integration_test_cases_generating`, and `e2e_test_cases_generating` chat entries now display live progress text (`tcGenLabel`) instead of a static message.
+  - All four `[XOLVIEN_PROGRESS]` handlers (unit manual, unit revision, integration, E2E) now capture `elapsed_ms` and compute ETA as `ceil((elapsed_ms / done) * (total - done) / 1000)` seconds.
+  - Added `fmtHms(sec)` helper: formats seconds as `mm:ss` (or `hh:mm:ss` if ≥ 1 hour).
+  - ETA passed to `progressGenTC` and `progressGenCode` as formatted `hh:mm:ss` string.
+
+- Frontend `src/i18n/en.ts` / `ja.ts`:
+  - `progressGenTC`: added optional `etaHms` parameter. Displays `~mm:ss remaining` / `残り約mm:ss` when available.
+  - `progressGenCode`: changed `etaSec: number` to `etaHms: string` parameter. Same hh:mm:ss format.
+
+---
+
 ## 2026-05-03
 
 ### UI Bug Fixes & Input Design Improvements
