@@ -1044,7 +1044,7 @@ docker cp xolvien-task-1:/workspace/repo/translator.html ~/Desktop/translator.ht
 
 | 表示 | 意味 |
 |---|---|
-| ✅ 緑（合格件数付き） | 完了済み（テスト成功） |
+| ✅ 緑 | 完了済み（テスト成功） |
 | ❌ 赤 | 完了済み（テスト失敗） |
 | 青（太字） | 現在のステップ |
 | グレー | 未実施 |

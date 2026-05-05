@@ -2311,9 +2311,6 @@ export default function TaskDetail() {
                     >
                       <span>{icon}</span>
                       <span>{getStepLabel(step.id)}</span>
-                      {step.resultLabel && (
-                        <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>({step.resultLabel})</span>
-                      )}
                     </button>
                   </div>
                 )

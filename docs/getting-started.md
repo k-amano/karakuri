@@ -971,7 +971,7 @@ Step bar icon/color meanings:
 
 | Display | Meaning |
 |---|---|
-| ✅ green (with pass count) | Completed (tests passed) |
+| ✅ green | Completed (tests passed) |
 | ❌ red | Completed (tests failed) |
 | Blue (bold) | Current step |
 | Grey | Not yet started |

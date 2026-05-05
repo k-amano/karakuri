@@ -288,7 +288,7 @@ Always visible at the top of the control panel. Steps: Implement â†’ Unit Test â
 | Green | Completed (test passed) |
 | Red | Completed (test failed) |
 | Blue (bold) | Current step |
-| Yellow background, black text | Selected (step navigated to by click) |
+| Yellow background, black text | Selected (navigated to by click) |
 | Grey | Not yet started |
 
 ### 5.4 Test Case Review Card Operations
