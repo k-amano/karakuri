@@ -752,11 +752,11 @@ export default function TaskDetail() {
           )
         )
         let newLabel: string | null = null
-        if (chunk.includes('[TEST] テストを実行しています') || chunk.includes('[TEST] テストを再実行しています')) {
+        if (/\[TEST\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
           testCountRef.current = { passed: 0, failed: 0 }
           newLabel = t.progressRunning(0, 0)
-        } else if (chunk.includes('[TEST] 自動修正')) {
-          const m = chunk.match(/自動修正 \((\d+)\/(\d+)\)/)
+        } else if (/\[TEST\] (Auto-fix|自動修正)/.test(chunk)) {
+          const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
           newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
         } else {
           let updated = false
@@ -859,11 +859,11 @@ export default function TaskDetail() {
           )
         )
         let newLabel: string | null = null
-        if (chunk.includes('[ITEST] テストを実行しています') || chunk.includes('[ITEST] テストを再実行しています')) {
+        if (/\[ITEST\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
           testCountRef.current = { passed: 0, failed: 0 }
           newLabel = t.progressIntegration(0, 0)
-        } else if (chunk.includes('[ITEST] 自動修正')) {
-          const m = chunk.match(/自動修正 \((\d+)\/(\d+)\)/)
+        } else if (/\[ITEST\] (Auto-fix|自動修正)/.test(chunk)) {
+          const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
           newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
         } else {
           let updated = false
@@ -1066,11 +1066,11 @@ export default function TaskDetail() {
           )
         )
         let newLabel: string | null = null
-        if (chunk.includes('[E2E] テストを実行しています') || chunk.includes('[E2E] テストを再実行しています')) {
+        if (/\[E2E\] (Running tests:|テストを実行しています|Re-running tests|テストを再実行しています)/.test(chunk)) {
           testCountRef.current = { passed: 0, failed: 0 }
           newLabel = t.progressE2E(0, 0)
-        } else if (chunk.includes('[E2E] 自動修正')) {
-          const m = chunk.match(/自動修正 \((\d+)\/(\d+)\)/)
+        } else if (/\[E2E\] (Auto-fix|自動修正)/.test(chunk)) {
+          const m = chunk.match(/(?:Auto-fix|自動修正) \((\d+)\/(\d+)\)/)
           newLabel = m ? t.autoFixing(Number(m[1]), Number(m[2])) : t.autoFix
         } else {
           let updated = false
