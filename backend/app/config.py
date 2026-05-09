@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Claude Code (no longer used; Claude Code CLI is used instead)
     anthropic_api_key: str = ""
 
+    # GitHub
+    github_token: str = ""
+
     # Environment
     environment: str = "development"
 

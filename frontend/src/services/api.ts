@@ -25,6 +25,15 @@ export async function createRepository(data: {
   return res.data
 }
 
+export async function createGitHubRepository(data: {
+  name: string
+  description?: string
+  private?: boolean
+}): Promise<Repository> {
+  const res = await apiClient.post<Repository>('/api/v1/repositories/github', data)
+  return res.data
+}
+
 export async function getTasks(): Promise<Task[]> {
   const res = await apiClient.get<Task[]>('/api/v1/tasks')
   return res.data

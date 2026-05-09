@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import type { Repository } from '../types'
-import { getRepositories, createRepository, createTask } from '../services/api'
+import { getRepositories, createRepository, createGitHubRepository, createTask } from '../services/api'
 import { useLang } from '../i18n'
 
-type RepoMode = 'existing' | 'new'
+type RepoMode = 'existing' | 'new' | 'github'
 
 interface FormErrors {
   repoId?: string
@@ -23,6 +23,10 @@ export default function TaskCreate() {
   const [newRepoUrl, setNewRepoUrl] = useState('')
   const [newRepoName, setNewRepoName] = useState('')
   const [newRepoDescription, setNewRepoDescription] = useState('')
+  const [githubRepoName, setGithubRepoName] = useState('')
+  const [githubRepoDesc, setGithubRepoDesc] = useState('')
+  const [githubPrivate, setGithubPrivate] = useState(false)
+  const [githubCreating, setGithubCreating] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [branchName, setBranchName] = useState('')
@@ -52,11 +56,15 @@ export default function TaskCreate() {
       if (!selectedRepoId) {
         errs.repoId = t.validationSelectRepo
       }
-    } else {
+    } else if (repoMode === 'new') {
       if (!newRepoUrl.trim()) {
         errs.repoUrl = t.validationRepoUrl
       }
       if (!newRepoName.trim()) {
+        errs.repoName = t.validationRepoName
+      }
+    } else {
+      if (!githubRepoName.trim()) {
         errs.repoName = t.validationRepoName
       }
     }
@@ -90,6 +98,19 @@ export default function TaskCreate() {
           description: newRepoDescription.trim() || undefined,
         })
         repositoryId = repo.id
+      } else if (repoMode === 'github') {
+        setGithubCreating(true)
+        let repo: Repository
+        try {
+          repo = await createGitHubRepository({
+            name: githubRepoName.trim(),
+            description: githubRepoDesc.trim() || undefined,
+            private: githubPrivate,
+          })
+        } finally {
+          setGithubCreating(false)
+        }
+        repositoryId = repo.id
       } else {
         repositoryId = parseInt(selectedRepoId, 10)
       }
@@ -102,10 +123,15 @@ export default function TaskCreate() {
       })
 
       navigate(`/tasks/${task.id}`)
-    } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : t.createTaskFailed
-      )
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string }; status?: number } }
+      if (axiosErr.response?.status === 503) {
+        setSubmitError(t.githubTokenNotSet)
+      } else if (axiosErr.response?.data?.detail) {
+        setSubmitError(`${t.githubError}${axiosErr.response.data.detail}`)
+      } else {
+        setSubmitError(err instanceof Error ? err.message : t.createTaskFailed)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -160,9 +186,57 @@ export default function TaskCreate() {
                 >
                   {t.addNew}
                 </button>
+                <button
+                  type="button"
+                  className={repoMode === 'github' ? 'active' : ''}
+                  onClick={() => setRepoMode('github')}
+                >
+                  {t.createOnGitHub}
+                </button>
               </div>
 
-              {repoMode === 'existing' ? (
+              {repoMode === 'github' ? (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">
+                      {t.githubRepoName} <span className="required">{t.required}</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={githubRepoName}
+                      onChange={e => setGithubRepoName(e.target.value)}
+                      placeholder={t.repoNamePlaceholder}
+                    />
+                    {errors.repoName && (
+                      <p className="form-error">{errors.repoName}</p>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">{t.githubRepoDesc}</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={githubRepoDesc}
+                      onChange={e => setGithubRepoDesc(e.target.value)}
+                      placeholder={t.repoDescPlaceholder}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      id="github-private"
+                      checked={githubPrivate}
+                      onChange={e => setGithubPrivate(e.target.checked)}
+                    />
+                    <label htmlFor="github-private" style={{ color: '#cbd5e1', fontSize: '0.875rem', cursor: 'pointer' }}>
+                      {t.githubPrivate}
+                    </label>
+                  </div>
+                </>
+              ) : repoMode === 'existing' ? (
                 <div className="form-group">
                   <label className="form-label">
                     {t.repoLabel} <span className="required">{t.required}</span>
@@ -290,13 +364,11 @@ export default function TaskCreate() {
                 className="btn-primary"
                 disabled={submitting}
               >
-                {submitting ? (
-                  <>
-                    {t.creating}
-                  </>
-                ) : (
-                  t.createTaskBtn
-                )}
+                {githubCreating
+                  ? t.githubCreating
+                  : submitting
+                  ? t.creating
+                  : t.createTaskBtn}
               </button>
               <Link to="/">
                 <button type="button" className="btn-secondary">

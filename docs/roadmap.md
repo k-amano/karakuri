@@ -187,17 +187,24 @@ Results from an external agent code review.
 
 ---
 
-## GitHub API: Automatic Repository Creation
-
-Creating a GitHub repository manually every time a new program is started is cumbersome. Allow repository creation directly from the task creation screen.
+## ~~GitHub API: Automatic Repository Creation~~ ✅ Fixed (2026-05-09)
 
 **Backend:**
-- Add endpoint that calls GitHub API (`POST /user/repos`) to create a repository.
-- Manage GitHub Personal Access Token via `.env`.
+- `config.py`: Added `github_token` setting (reads `GITHUB_TOKEN` from `.env`).
+- `schemas/repository.py`: Added `GitHubRepoCreate` schema (`name`, `description`, `private`).
+- `api/repositories.py`: Added `POST /api/v1/repositories/github` endpoint.
+  - Calls GitHub API `POST /user/repos` with `auto_init: true`.
+  - Returns SSH URL (`ssh_url`) from GitHub and saves it as the repository URL.
+  - Returns 503 if `GITHUB_TOKEN` is not set; 401 if token is invalid; 502 for other GitHub errors.
 
 **Frontend:**
-- Add "Create on GitHub automatically" option to the "Add new repository" tab in task creation.
-- Entering the repository name and description auto-fills the URL.
+- `services/api.ts`: Added `createGitHubRepository()`.
+- `pages/TaskCreate.tsx`: Added "GitHubで作成 / Create on GitHub" third tab to the repository toggle.
+  - Fields: repository name (required), description (optional), private checkbox.
+  - Shows "GitHubに作成中... / Creating on GitHub..." while the API call is in progress.
+  - Displays user-friendly error messages for token-not-set (503) and other API errors.
+- `i18n/en.ts` / `ja.ts`: Added GitHub creation strings.
+- `backend/.env`: Added `GITHUB_TOKEN=` placeholder.
 
 ---
 

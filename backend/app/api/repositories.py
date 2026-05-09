@@ -3,12 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
+import httpx
 
 from app.database import get_db
 from app.models.repository import Repository
 from app.models.user import User
-from app.schemas.repository import RepositoryCreate, RepositoryResponse, RepositoryUpdate
+from app.schemas.repository import RepositoryCreate, RepositoryResponse, RepositoryUpdate, GitHubRepoCreate
 from app.api.auth import verify_token
+from app.config import get_settings
 
 router = APIRouter(prefix="/api/v1/repositories", tags=["repositories"])
 
@@ -29,6 +31,58 @@ async def get_or_create_default_user(db: AsyncSession) -> User:
         await db.refresh(user)
 
     return user
+
+
+@router.post("/github", response_model=RepositoryResponse, status_code=201)
+async def create_github_repository(
+    data: GitHubRepoCreate,
+    db: AsyncSession = Depends(get_db),
+    _token: str = Depends(verify_token),
+):
+    """Create a GitHub repository via API and register it in Xolvien."""
+    settings = get_settings()
+    if not settings.github_token:
+        raise HTTPException(status_code=503, detail="GitHub token not configured")
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://api.github.com/user/repos",
+            headers={
+                "Authorization": f"Bearer {settings.github_token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            json={
+                "name": data.name,
+                "description": data.description or "",
+                "private": data.private,
+                "auto_init": True,
+            },
+        )
+
+    if resp.status_code == 422:
+        detail = resp.json().get("message", "Validation failed")
+        raise HTTPException(status_code=422, detail=detail)
+    if resp.status_code == 401:
+        raise HTTPException(status_code=401, detail="GitHub token is invalid or expired")
+    if resp.status_code not in (200, 201):
+        detail = resp.json().get("message", "GitHub API error")
+        raise HTTPException(status_code=502, detail=f"GitHub API error: {detail}")
+
+    gh = resp.json()
+    ssh_url: str = gh["ssh_url"]
+
+    user = await get_or_create_default_user(db)
+    repository = Repository(
+        name=data.name,
+        url=ssh_url,
+        description=data.description,
+        owner_id=user.id,
+    )
+    db.add(repository)
+    await db.commit()
+    await db.refresh(repository)
+    return repository
 
 
 @router.get("", response_model=List[RepositoryResponse])

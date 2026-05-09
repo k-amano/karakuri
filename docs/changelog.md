@@ -2,6 +2,30 @@
 
 ---
 
+## 2026-05-09
+
+### GitHub API: Automatic Repository Creation
+
+**Changes:**
+
+- Backend `config.py`: Added `github_token` setting (env var `GITHUB_TOKEN`).
+- Backend `schemas/repository.py`: Added `GitHubRepoCreate` schema.
+- Backend `api/repositories.py`: Added `POST /api/v1/repositories/github`.
+  - Calls GitHub API `POST /user/repos` with `auto_init: true` (creates README on GitHub side).
+  - Saves the SSH URL from GitHub response as the repository URL in Xolvien DB.
+  - Error handling: 503 if token not set, 401 if token invalid, 502 for other GitHub errors.
+- Backend `requirements`: Added `httpx` for async HTTP calls to GitHub API.
+- Backend `.env`: Added `GITHUB_TOKEN=` placeholder.
+- Frontend `services/api.ts`: Added `createGitHubRepository()`.
+- Frontend `pages/TaskCreate.tsx`:
+  - Added "GitHubで作成 / Create on GitHub" as a third tab in the repository mode toggle.
+  - Input fields: name (required), description (optional), private checkbox.
+  - Shows "GitHubに作成中... / Creating on GitHub..." on the submit button while creating.
+  - User-friendly error messages for token-not-configured (503) and API errors.
+- Frontend `i18n/en.ts` / `ja.ts`: Added `createOnGitHub`, `githubRepoName`, `githubRepoDesc`, `githubPrivate`, `githubCreating`, `githubTokenNotSet`, `githubError` strings.
+
+---
+
 ## 2026-05-05
 
 ### Real-time Test Case Generation Progress

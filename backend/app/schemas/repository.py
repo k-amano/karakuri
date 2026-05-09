@@ -1,5 +1,5 @@
 """Repository schemas."""
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
@@ -17,6 +17,13 @@ class RepositoryCreate(RepositoryBase):
     """Repository creation schema."""
 
     pass
+
+
+class GitHubRepoCreate(BaseModel):
+    """Request to create a GitHub repository and register it."""
+    name: str
+    description: Optional[str] = None
+    private: bool = False
 
 
 class RepositoryUpdate(BaseModel):
